@@ -1,0 +1,529 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3">
+  <hashTree>
+    <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="Snowflake Performance Test Plan" enabled="true">
+      <stringProp name="TestPlan.comments">Performance test for Snowflake - 700 req/sec for 1 minute</stringProp>
+      <boolProp name="TestPlan.functional_mode">false</boolProp>
+      <boolProp name="TestPlan.tearDown_on_shutdown">true</boolProp>
+      <boolProp name="TestPlan.serialize_threadgroups">false</boolProp>
+      <elementProp name="TestPlan.user_defined_variables" elementType="Arguments" guiclass="ArgumentsPanel" testclass="Arguments" testname="User Defined Variables" enabled="true">
+        <collectionProp name="Arguments.arguments"/>
+      </elementProp>
+      <stringProp name="TestPlan.user_define_classpath">lib\snowflake-jdbc-3.14.4.jar</stringProp>
+    </TestPlan>
+    <hashTree>
+      <!-- JDBC Connection Configuration -->
+      <JDBCDataSource guiclass="TestBeanGUI" testclass="JDBCDataSource" testname="Snowflake JDBC Connection" enabled="true">
+        <boolProp name="autocommit">true</boolProp>
+        <stringProp name="checkQuery"></stringProp>
+        <stringProp name="connectionAge">10000</stringProp>
+        <stringProp name="connectionProperties">JDBC_QUERY_RESULT_FORMAT=JSON</stringProp>
+        <stringProp name="dataSource">SnowflakePool</stringProp>
+        <stringProp name="dbUrl">${__P(snowflake.url)}</stringProp>
+        <stringProp name="driver">net.snowflake.client.jdbc.SnowflakeDriver</stringProp>
+        <stringProp name="initQuery"></stringProp>
+        <boolProp name="keepAlive">true</boolProp>
+        <stringProp name="password">${__P(snowflake.password)}</stringProp>
+        <stringProp name="poolMax">${__P(snowflake.poolMax,300)}</stringProp>
+        <stringProp name="timeout">30000</stringProp>
+        <stringProp name="transactionIsolation">DEFAULT</stringProp>
+        <stringProp name="trimInterval">60000</stringProp>
+        <stringProp name="username">${__P(snowflake.username)}</stringProp>
+      </JDBCDataSource>
+      <hashTree/>
+      
+      <!-- Setup Thread Group - Fetch Parameters Once -->
+      <SetupThreadGroup guiclass="SetupThreadGroupGui" testclass="SetupThreadGroup" testname="Setup - Fetch Parameters" enabled="true">
+        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+          <stringProp name="LoopController.loops">1</stringProp>
+        </elementProp>
+        <stringProp name="ThreadGroup.num_threads">1</stringProp>
+        <stringProp name="ThreadGroup.ramp_time">1</stringProp>
+        <boolProp name="ThreadGroup.scheduler">false</boolProp>
+        <stringProp name="ThreadGroup.duration"></stringProp>
+        <stringProp name="ThreadGroup.delay"></stringProp>
+        <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+      </SetupThreadGroup>
+      <hashTree>
+        <!-- Parameter Query Sampler -->
+        <JDBCSampler guiclass="TestBeanGUI" testclass="JDBCSampler" testname="Fetch Test Parameters" enabled="true">
+          <stringProp name="dataSource">SnowflakePool</stringProp>
+          <stringProp name="queryType">Select Statement</stringProp>
+          <stringProp name="query">SELECT SKILL_NO, _TENANT_ID
+FROM (
+    SELECT DISTINCT SKILL_NO, _TENANT_ID, COUNT(*) AS TOTAL
+    FROM DATAHUB_INTERACTIVE.SUITE_REFINED.CONTACT_ACTIVITY_FACT
+    WHERE TO_DATE(CONTACT_START_TIMESTAMP) &gt;= CURRENT_DATE()-13
+    GROUP BY ALL
+    ORDER BY TOTAL DESC
+    LIMIT 100
+)</stringProp>
+          <stringProp name="queryArguments"></stringProp>
+          <stringProp name="queryArgumentsTypes"></stringProp>
+          <stringProp name="variableNames">skill_no_list,tenant_id_list</stringProp>
+          <stringProp name="resultVariable">paramResults</stringProp>
+          <stringProp name="queryTimeout"></stringProp>
+          <stringProp name="resultSetMaxRows"></stringProp>
+          <stringProp name="resultSetHandler">Store as String</stringProp>
+        </JDBCSampler>
+        <hashTree/>
+        
+        <!-- JSR223 PostProcessor to Store Parameters -->
+        <JSR223PostProcessor guiclass="TestBeanGUI" testclass="JSR223PostProcessor" testname="Store Parameters as Properties" enabled="true">
+          <stringProp name="scriptLanguage">groovy</stringProp>
+          <stringProp name="parameters"></stringProp>
+          <stringProp name="filename"></stringProp>
+          <stringProp name="cacheKey">true</stringProp>
+          <stringProp name="script">// Store parameter results for use across thread groups
+def results = vars.getObject(&apos;paramResults&apos;)
+if (results != null &amp;&amp; results.size() &gt; 0) {
+    def paramList = []
+    results.each { row -&gt;
+        def skillNo = row.get(&apos;SKILL_NO&apos;)
+        def tenantId = row.get(&apos;_TENANT_ID&apos;)
+        paramList.add(&quot;${skillNo}|${tenantId}&quot;)
+    }
+    props.put(&apos;parameterList&apos;, paramList.join(&apos;,&apos;))
+    log.info(&quot;=&quot;.multiply(60))
+    log.info(&quot;SETUP PHASE COMPLETED&quot;)
+    log.info(&quot;=&quot;.multiply(60))
+    log.info(&quot;Parameters fetched: ${paramList.size()} combinations&quot;)
+    log.info(&quot;Connection established to Snowflake successfully&quot;)
+    log.info(&quot;Load test configuration:&quot;)
+    def configThreads = props.get(&apos;snowflake.threads&apos;) ?: &apos;700&apos;
+    def configPool = props.get(&apos;snowflake.poolMax&apos;) ?: &apos;300&apos;
+    log.info(&quot;  - Threads: ${configThreads} (concurrent load generators)&quot;)
+    log.info(&quot;  - Connection Pool: ${configPool} connections (shared)&quot;)
+    log.info(&quot;  - Efficiency: ${String.format('%.1f', Integer.parseInt(configThreads) / Integer.parseInt(configPool))} threads per connection (average)&quot;)
+    log.info(&quot;=&quot;.multiply(60))
+} else {
+    log.error(&quot;No parameters fetched from database&quot;)
+}
+</stringProp>
+        </JSR223PostProcessor>
+        <hashTree/>
+      </hashTree>
+      
+      <!-- Main Load Test Thread Group -->
+      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Main Load Test - ${__P(snowflake.threads,700)} req/sec" enabled="true">
+        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+          <intProp name="LoopController.loops">-1</intProp>
+        </elementProp>
+        <stringProp name="ThreadGroup.num_threads">${__P(snowflake.threads,700)}</stringProp>
+        <stringProp name="ThreadGroup.ramp_time">1</stringProp>
+        <boolProp name="ThreadGroup.scheduler">true</boolProp>
+        <stringProp name="ThreadGroup.duration">177</stringProp>
+        <stringProp name="ThreadGroup.delay">0</stringProp>
+        <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+      </ThreadGroup>
+      <hashTree>
+        <!-- JSR223 PreProcessor to Select Random Parameters -->
+        <JSR223PreProcessor guiclass="TestBeanGUI" testclass="JSR223PreProcessor" testname="Select Random Parameters" enabled="true">
+          <stringProp name="scriptLanguage">groovy</stringProp>
+          <stringProp name="parameters"></stringProp>
+          <stringProp name="filename"></stringProp>
+          <stringProp name="cacheKey">true</stringProp>
+          <stringProp name="script">// Get the stored parameter list
+def paramListStr = props.get(&apos;parameterList&apos;)
+if (paramListStr != null) {
+    def paramList = paramListStr.split(&apos;,&apos;)
+    def randomParam = paramList[new Random().nextInt(paramList.length)]
+    def parts = randomParam.split(&apos;\\|&apos;)
+    vars.put(&apos;skill_no&apos;, parts[0])
+    vars.put(&apos;tenant_id&apos;, parts[1])
+    
+    // Generate random day offsets
+    def dayOffsetStart = new Random().nextInt(8) // 0-7
+    def dayOffsetEnd = new Random().nextInt(13) + 1 // 1-13
+    vars.put(&apos;day_offset_start&apos;, dayOffsetStart.toString())
+    vars.put(&apos;day_offset_end&apos;, dayOffsetEnd.toString())
+} else {
+    log.error(&quot;No parameters available&quot;)
+}
+</stringProp>
+        </JSR223PreProcessor>
+        <hashTree/>
+        
+        <!-- Main Query Sampler -->
+        <JDBCSampler guiclass="TestBeanGUI" testclass="JDBCSampler" testname="Main Performance Query" enabled="true">
+          <stringProp name="dataSource">SnowflakePool</stringProp>
+          <stringProp name="queryType">Select Statement</stringProp>
+          <stringProp name="query">SELECT
+    CA_FVST.INTERACTION_ID AS INTERACTION_ID,
+    CA_FVST.CONTACT_NO AS CONTACT_NO,
+    COUNT(DISTINCT CA_FVST.CONTACT_NO) OVER (PARTITION BY CA_FVST.INTERACTION_ID) AS INTERACTION_CONTACT_COUNT,
+    SUM(COALESCE(CA_FVST.CONTACT_ACTIVITY_DURATION_SECONDS, 0)) AS CONTACT_ACTIVITY_DURATION_SECONDS,
+    MAX(CA_FVST.FROM_ADDRESS) AS FROM_ADDRESS,
+    MAX(CA_FVST.TO_ADDRESS) AS TO_ADDRESS,
+    MIN(CA_FVST.START_TIMESTAMP) AS START_TIMESTAMP,
+    MAX(CA_FVST.END_TIMESTAMP) AS END_TIMESTAMP
+FROM
+    DATAHUB_INTERACTIVE.SUITE_REFINED.CONTACT_ACTIVITY_FACT AS CA_FVST
+WHERE TO_DATE(CA_FVST.CONTACT_START_TIMESTAMP) BETWEEN TO_DATE(&apos;2026-02-18&apos;)-${day_offset_end} AND TO_DATE(&apos;2026-02-18&apos;)-${day_offset_start}
+    AND CA_FVST.SKILL_NO = ${skill_no}
+    AND CA_FVST._TENANT_ID = &apos;${tenant_id}&apos;
+GROUP BY CA_FVST.INTERACTION_ID, CA_FVST.CONTACT_NO</stringProp>
+          <stringProp name="queryArguments"></stringProp>
+          <stringProp name="queryArgumentsTypes"></stringProp>
+          <stringProp name="variableNames"></stringProp>
+          <stringProp name="resultVariable"></stringProp>
+          <stringProp name="queryTimeout"></stringProp>
+          <stringProp name="resultSetMaxRows"></stringProp>
+          <stringProp name="resultSetHandler">Count Records</stringProp>
+        </JDBCSampler>
+        <hashTree>
+          <!-- JSR223 PostProcessor to Track Statistics -->
+          <JSR223PostProcessor guiclass="TestBeanGUI" testclass="JSR223PostProcessor" testname="Track Request Statistics" enabled="true">
+            <stringProp name="scriptLanguage">groovy</stringProp>
+            <stringProp name="parameters"></stringProp>
+            <stringProp name="filename"></stringProp>
+            <stringProp name="cacheKey">true</stringProp>
+            <stringProp name="script">// Store configuration for final summary (do this once)
+if (props.get(&apos;configStored&apos;) == null) {
+    def configuredThreads = props.get(&apos;snowflake.threads&apos;) ?: &apos;700&apos;
+    def configuredPoolSize = props.get(&apos;snowflake.poolMax&apos;) ?: &apos;300&apos;
+    props.put(&apos;threadCount&apos;, configuredThreads)
+    props.put(&apos;poolSize&apos;, configuredPoolSize)
+    props.put(&apos;configStored&apos;, &apos;true&apos;)
+    log.info(&quot;Stored config - Threads: ${configuredThreads}, Pool: ${configuredPoolSize}&quot;)
+}
+def currentThreads = ctx.getThreadGroup().getNumberOfThreads()
+def poolSize = Integer.parseInt(props.get(&apos;snowflake.poolMax&apos;) ?: &apos;300&apos;) // Connection pool size from properties
+
+// Track statistics (initialize counters if not present)
+def totalCounter = props.get(&apos;totalRequestCounter&apos;)
+if (totalCounter == null) {
+    props.put(&apos;totalRequestCounter&apos;, &quot;0&quot;)
+    props.put(&apos;successRequestCounter&apos;, &quot;0&quot;)
+    props.put(&apos;failedRequestCounter&apos;, &quot;0&quot;)
+    props.put(&apos;lastLogTime&apos;, System.currentTimeMillis().toString())
+}
+
+// Increment counters
+def total = (props.get(&apos;totalRequestCounter&apos;) as Integer) + 1
+props.put(&apos;totalRequestCounter&apos;, total.toString())
+
+if (prev.isSuccessful()) {
+    def success = (props.get(&apos;successRequestCounter&apos;) as Integer) + 1
+    props.put(&apos;successRequestCounter&apos;, success.toString())
+} else {
+    def failed = (props.get(&apos;failedRequestCounter&apos;) as Integer) + 1
+    props.put(&apos;failedRequestCounter&apos;, failed.toString())
+}
+
+// Log summary every 1 second
+def lastLogTime = props.get(&apos;lastLogTime&apos;) as Long
+def currentTime = System.currentTimeMillis()
+if ((currentTime - lastLogTime) &gt;= 1000) {
+    def successCount = props.get(&apos;successRequestCounter&apos;) as Integer
+    def failedCount = props.get(&apos;failedRequestCounter&apos;) as Integer
+    def successRate = total &gt; 0 ? ((successCount * 100.0) / total) : 0
+    
+    // Calculate requests in last second
+    def lastTotal = props.get(&apos;lastTotalCount&apos;) != null ? (props.get(&apos;lastTotalCount&apos;) as Integer) : 0
+    def reqPerSec = total - lastTotal
+    
+    log.info(&quot;[PROGRESS] Total: ${total} | Last 1s: ${reqPerSec} req/s | Success: ${successCount} (${String.format(&apos;%.2f&apos;, successRate)}%) | Failed: ${failedCount} | Threads: ${currentThreads} | Pool: ${poolSize} connections&quot;)
+    props.put(&apos;lastLogTime&apos;, currentTime.toString())
+    props.put(&apos;lastTotalCount&apos;, total.toString())
+}
+</stringProp>
+          </JSR223PostProcessor>
+          <hashTree/>
+        </hashTree>
+        
+        <!-- JSR223 Timer for Stepped Throughput Ramp-up -->
+        <JSR223Timer guiclass="TestBeanGUI" testclass="JSR223Timer" testname="Stepped Ramp-up Timer" enabled="true">
+          <stringProp name="scriptLanguage">groovy</stringProp>
+          <stringProp name="parameters"></stringProp>
+          <stringProp name="filename"></stringProp>
+          <stringProp name="cacheKey">true</stringProp>
+          <stringProp name="script">// Get test start time (store in properties on first access)
+def testStartTime = props.get(&apos;testStartTime&apos;)
+if (testStartTime == null) {
+    testStartTime = System.currentTimeMillis()
+    props.put(&apos;testStartTime&apos;, testStartTime.toString())
+}
+
+// Calculate elapsed seconds since test start
+def elapsedSeconds = (System.currentTimeMillis() - Long.parseLong(testStartTime.toString())) / 1000.0
+
+// Determine target throughput based on elapsed time (stepped ramp-up)
+// Ramp-up steps are proportional to maxThroughput: 14%, 29%, 57%, 100%
+def maxThroughput = Integer.parseInt(props.get('snowflake.threads') ?: '700')
+def targetThroughput = 0
+if (elapsedSeconds &lt; 10) {
+    targetThroughput = Math.round(maxThroughput * 0.143)  // 0-10s: 14.3% of max
+} else if (elapsedSeconds &lt; 30) {
+    targetThroughput = Math.round(maxThroughput * 0.286)  // 10-30s: 28.6% of max
+} else if (elapsedSeconds &lt; 60) {
+    targetThroughput = Math.round(maxThroughput * 0.571)  // 30-60s: 57.1% of max
+} else {
+    targetThroughput = maxThroughput  // 60s+: 100% of max
+}
+
+// Calculate delay to achieve target throughput
+// Each thread needs to wait: (1000ms / targetThroughput) * numThreads
+def numThreads = ctx.getThreadGroup().getNumberOfThreads()
+def delayPerRequest = (1000.0 / targetThroughput) * numThreads
+
+// Return delay in milliseconds (Timer expects long return value)
+return (long)delayPerRequest
+</stringProp>
+        </JSR223Timer>
+        <hashTree/>
+      </hashTree>
+      
+      <!-- Listeners -->
+      <ResultCollector guiclass="SummaryReport" testclass="ResultCollector" testname="Summary Report" enabled="true">
+        <boolProp name="ResultCollector.error_logging">false</boolProp>
+        <objProp>
+          <name>saveConfig</name>
+          <value class="SampleSaveConfiguration">
+            <time>true</time>
+            <latency>true</latency>
+            <timestamp>true</timestamp>
+            <success>true</success>
+            <label>true</label>
+            <code>true</code>
+            <message>false</message>
+            <threadName>false</threadName>
+            <dataType>true</dataType>
+            <encoding>false</encoding>
+            <assertions>false</assertions>
+            <subresults>false</subresults>
+            <responseData>false</responseData>
+            <samplerData>false</samplerData>
+            <xml>false</xml>
+            <fieldNames>true</fieldNames>
+            <responseHeaders>false</responseHeaders>
+            <requestHeaders>false</requestHeaders>
+            <responseDataOnError>false</responseDataOnError>
+            <saveAssertionResultsFailureMessage>false</saveAssertionResultsFailureMessage>
+            <assertionsResultsToSave>0</assertionsResultsToSave>
+            <bytes>true</bytes>
+            <sentBytes>true</sentBytes>
+            <url>false</url>
+            <threadCounts>true</threadCounts>
+            <idleTime>true</idleTime>
+            <connectTime>true</connectTime>
+          </value>
+        </objProp>
+        <stringProp name="filename">results/summary_results.jtl</stringProp>
+      </ResultCollector>
+      <hashTree/>
+      
+      <ResultCollector guiclass="StatVisualizer" testclass="ResultCollector" testname="Aggregate Report" enabled="true">
+        <boolProp name="ResultCollector.error_logging">false</boolProp>
+        <objProp>
+          <name>saveConfig</name>
+          <value class="SampleSaveConfiguration">
+            <time>true</time>
+            <latency>true</latency>
+            <timestamp>true</timestamp>
+            <success>true</success>
+            <label>true</label>
+            <code>true</code>
+            <message>false</message>
+            <threadName>false</threadName>
+            <dataType>true</dataType>
+            <encoding>false</encoding>
+            <assertions>false</assertions>
+            <subresults>false</subresults>
+            <responseData>false</responseData>
+            <samplerData>false</samplerData>
+            <xml>false</xml>
+            <fieldNames>true</fieldNames>
+            <responseHeaders>false</responseHeaders>
+            <requestHeaders>false</requestHeaders>
+            <responseDataOnError>false</responseDataOnError>
+            <saveAssertionResultsFailureMessage>false</saveAssertionResultsFailureMessage>
+            <assertionsResultsToSave>0</assertionsResultsToSave>
+            <bytes>true</bytes>
+            <sentBytes>true</sentBytes>
+            <url>false</url>
+            <threadCounts>true</threadCounts>
+            <idleTime>true</idleTime>
+            <connectTime>true</connectTime>
+          </value>
+        </objProp>
+        <stringProp name="filename">results/aggregate_results.jtl</stringProp>
+      </ResultCollector>
+      <hashTree/>
+      
+      <ResultCollector guiclass="TableVisualizer" testclass="ResultCollector" testname="View Results in Table" enabled="true">
+        <boolProp name="ResultCollector.error_logging">false</boolProp>
+        <objProp>
+          <name>saveConfig</name>
+          <value class="SampleSaveConfiguration">
+            <time>true</time>
+            <latency>true</latency>
+            <timestamp>true</timestamp>
+            <success>true</success>
+            <label>true</label>
+            <code>true</code>
+            <message>false</message>
+            <threadName>false</threadName>
+            <dataType>true</dataType>
+            <encoding>false</encoding>
+            <assertions>false</assertions>
+            <subresults>false</subresults>
+            <responseData>false</responseData>
+            <samplerData>false</samplerData>
+            <xml>false</xml>
+            <fieldNames>true</fieldNames>
+            <responseHeaders>false</responseHeaders>
+            <requestHeaders>false</requestHeaders>
+            <responseDataOnError>false</responseDataOnError>
+            <saveAssertionResultsFailureMessage>false</saveAssertionResultsFailureMessage>
+            <assertionsResultsToSave>0</assertionsResultsToSave>
+            <bytes>true</bytes>
+            <sentBytes>true</sentBytes>
+            <url>false</url>
+            <threadCounts>true</threadCounts>
+            <idleTime>true</idleTime>
+            <connectTime>true</connectTime>
+          </value>
+        </objProp>
+        <stringProp name="filename">results/results.jtl</stringProp>
+      </ResultCollector>
+      <hashTree/>
+      
+      <!-- Summariser for Periodic Logging -->
+      <Summariser guiclass="SummariserGui" testclass="Summariser" testname="Generate Summary Results" enabled="true"/>
+      <hashTree/>
+      
+      <!-- TearDown Thread Group for Final Summary -->
+      <PostThreadGroup guiclass="PostThreadGroupGui" testclass="PostThreadGroup" testname="TearDown - Final Summary" enabled="true">
+        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+          <stringProp name="LoopController.loops">1</stringProp>
+        </elementProp>
+        <stringProp name="ThreadGroup.num_threads">1</stringProp>
+        <stringProp name="ThreadGroup.ramp_time">1</stringProp>
+        <boolProp name="ThreadGroup.scheduler">false</boolProp>
+        <stringProp name="ThreadGroup.duration"></stringProp>
+        <stringProp name="ThreadGroup.delay"></stringProp>
+        <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+      </PostThreadGroup>
+      <hashTree>
+        <!-- JSR223 Sampler for Final Summary Report -->
+        <JSR223Sampler guiclass="TestBeanGUI" testclass="JSR223Sampler" testname="Print Final Summary" enabled="true">
+          <stringProp name="scriptLanguage">groovy</stringProp>
+          <stringProp name="parameters"></stringProp>
+          <stringProp name="filename"></stringProp>
+          <stringProp name="cacheKey">true</stringProp>
+          <stringProp name="script">import org.apache.jmeter.reporters.Summariser
+
+// Read results from JTL files to calculate statistics
+def resultsFile = new File(&quot;results/results.jtl&quot;)
+def totalRequests = 0
+def successRequests = 0
+def failedRequests = 0
+def totalResponseTime = 0L
+def minResponseTime = Long.MAX_VALUE
+def maxResponseTime = 0L
+def connectionCount = 0
+
+if (resultsFile.exists()) {
+    resultsFile.eachLine { line, lineNum -&gt;
+        if (lineNum == 1) return // Skip header
+        
+        def fields = line.split(&quot;,&quot;)
+        // Ensure we have enough fields (need at least 8 columns: 0-7)
+        // Skip malformed lines caused by multi-line error messages
+        if (fields.length &gt;= 8) {
+            try {
+                def elapsed = fields[1] as Long
+                def success = fields[7].trim()
+                
+                // Only count valid lines with proper success field
+                if (success == &quot;true&quot; || success == &quot;false&quot;) {
+                    totalRequests++
+                    
+                    if (success == &quot;true&quot;) {
+                        successRequests++
+                    } else {
+                        failedRequests++
+                    }
+                    
+                    totalResponseTime += elapsed
+                    minResponseTime = Math.min(minResponseTime, elapsed)
+                    maxResponseTime = Math.max(maxResponseTime, elapsed)
+                }
+            } catch (Exception e) {
+                // Skip lines that can&apos;t be parsed (malformed JTL entries)
+                log.debug(&quot;Skipping malformed JTL line: ${e.message}&quot;)
+            }
+        }
+    }
+}
+
+// Get configuration from JMeter properties (loaded via -q flag)
+// These are shared across all thread groups including teardown
+def threadCount = props.get(&quot;threadCount&quot;) ?: props.get(&quot;snowflake.threads&quot;) ?: &quot;700&quot;
+def poolSize = props.get(&quot;poolSize&quot;) ?: props.get(&quot;snowflake.poolMax&quot;) ?: &quot;300&quot;
+def targetThroughput = Integer.parseInt(props.get(&quot;snowflake.threads&quot;) ?: &quot;700&quot;)
+
+log.info(&quot;DEBUG - threadCount from props: ${props.get('threadCount')}&quot;)
+log.info(&quot;DEBUG - snowflake.threads from props: ${props.get('snowflake.threads')}&quot;)
+log.info(&quot;DEBUG - poolSize from props: ${props.get('poolSize')}&quot;)
+log.info(&quot;DEBUG - snowflake.poolMax from props: ${props.get('snowflake.poolMax')}&quot;)
+
+def avgResponseTime = totalRequests &gt; 0 ? (totalResponseTime / totalRequests) : 0
+def successRate = totalRequests &gt; 0 ? ((successRequests * 100.0) / totalRequests) : 0
+def failureRate = totalRequests &gt; 0 ? ((failedRequests * 100.0) / totalRequests) : 0
+
+// Print comprehensive summary
+log.info(&quot;=&quot;.multiply(80))
+log.info(&quot; SNOWFLAKE PERFORMANCE TEST - FINAL SUMMARY&quot;)
+log.info(&quot;=&quot;.multiply(80))
+log.info(&quot;&quot;)
+log.info(&quot;CONNECTION STATISTICS:&quot;)
+log.info(&quot;  Threads (Load Generators): ${threadCount}&quot;)
+log.info(&quot;  Connection Pool Size: ${poolSize}&quot;)
+log.info(&quot;  Pool Type: SnowflakePool (Shared Connection Pool)&quot;)
+log.info(&quot;&quot;)
+log.info(&quot;REQUEST STATISTICS:&quot;)
+log.info(&quot;  Total Requests:     ${totalRequests}&quot;)
+log.info(&quot;  Successful:         ${successRequests} (${String.format(&apos;%.2f&apos;, successRate)}%)&quot;)
+log.info(&quot;  Failed:             ${failedRequests} (${String.format(&apos;%.2f&apos;, failureRate)}%)&quot;)
+log.info(&quot;&quot;)
+log.info(&quot;RESPONSE TIME STATISTICS (milliseconds):&quot;)
+log.info(&quot;  Average:            ${String.format(&apos;%.2f&apos;, avgResponseTime)}&quot;)
+log.info(&quot;  Minimum:            ${minResponseTime == Long.MAX_VALUE ? 0 : minResponseTime}&quot;)
+log.info(&quot;  Maximum:            ${maxResponseTime}&quot;)
+log.info(&quot;&quot;)
+log.info(&quot;THROUGHPUT:&quot;)
+def testDuration = 177 // seconds
+def actualThroughput = totalRequests / testDuration
+log.info(&quot;  Actual:             ${String.format(&apos;%.2f&apos;, actualThroughput)} req/sec&quot;)
+log.info(&quot;  Target:             ${targetThroughput} req/sec&quot;)
+log.info(&quot;  Achievement:        ${String.format(&apos;%.2f&apos;, (actualThroughput/targetThroughput)*100)}%&quot;)
+log.info(&quot;&quot;)
+log.info(&quot;=&quot;.multiply(80))
+
+// Also write summary to console
+println(&quot;\n&quot; + &quot;=&quot;.multiply(80))
+println(&quot; SNOWFLAKE PERFORMANCE TEST - FINAL SUMMARY&quot;)
+println(&quot;=&quot;.multiply(80))
+println(&quot;&quot;)
+println(&quot;Total Requests: ${totalRequests} | Success: ${successRequests} (${String.format(&apos;%.2f&apos;, successRate)}%) | Failed: ${failedRequests} (${String.format(&apos;%.2f&apos;, failureRate)}%)&quot;)
+println(&quot;Avg Response Time: ${String.format(&apos;%.2f&apos;, avgResponseTime)}ms | Min: ${minResponseTime == Long.MAX_VALUE ? 0 : minResponseTime}ms | Max: ${maxResponseTime}ms&quot;)
+println(&quot;Throughput: ${String.format(&apos;%.2f&apos;, actualThroughput)} req/sec (Target: ${targetThroughput} req/sec, Achievement: ${String.format(&apos;%.2f&apos;, (actualThroughput/targetThroughput)*100)}%)&quot;)
+println(&quot;Threads: ${threadCount} | Connection Pool: ${poolSize}&quot;)
+println(&quot;=&quot;.multiply(80) + &quot;\n&quot;)
+
+return &quot;Final summary generated&quot;
+</stringProp>
+        </JSR223Sampler>
+        <hashTree/>
+      </hashTree>
+    </hashTree>
+  </hashTree>
+</jmeterTestPlan>
