@@ -1,0 +1,307 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3">
+  <hashTree>
+    <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="Snowflake Interactive WH - 700 QPS Test (8MB Result Set)" enabled="true">
+      <stringProp name="TestPlan.comments">Targets 700 QPS against Snowflake Interactive Warehouse - 8MB result sets per query (~125K rows). Date range widened to 100-110 days, resultSetMaxRows removed, Count Records handler (downloads all data via JDBC but discards from heap - realistic user pattern).</stringProp>
+      <boolProp name="TestPlan.functional_mode">false</boolProp>
+      <boolProp name="TestPlan.tearDown_on_shutdown">true</boolProp>
+      <boolProp name="TestPlan.serialize_threadgroups">false</boolProp>
+      <elementProp name="TestPlan.user_defined_variables" elementType="Arguments" guiclass="ArgumentsPanel" testclass="Arguments">
+        <collectionProp name="Arguments.arguments">
+          <elementProp name="SF_ACCOUNT" elementType="Argument">
+            <stringProp name="Argument.name">SF_ACCOUNT</stringProp>
+            <stringProp name="Argument.value">${__P(snowflake.account,your_account.snowflakecomputing.com)}</stringProp>
+          </elementProp>
+          <elementProp name="SF_USER" elementType="Argument">
+            <stringProp name="Argument.name">SF_USER</stringProp>
+            <stringProp name="Argument.value">${__P(snowflake.user,your_user)}</stringProp>
+          </elementProp>
+          <elementProp name="SF_PASSWORD" elementType="Argument">
+            <stringProp name="Argument.name">SF_PASSWORD</stringProp>
+            <stringProp name="Argument.value">${__P(snowflake.password,your_password)}</stringProp>
+          </elementProp>
+          <elementProp name="SF_WAREHOUSE" elementType="Argument">
+            <stringProp name="Argument.name">SF_WAREHOUSE</stringProp>
+            <stringProp name="Argument.value">${__P(snowflake.warehouse,TPCH_INTERACTIVE_WH)}</stringProp>
+          </elementProp>
+          <elementProp name="SF_DATABASE" elementType="Argument">
+            <stringProp name="Argument.name">SF_DATABASE</stringProp>
+            <stringProp name="Argument.value">${__P(snowflake.database,INTERACTIVE_DEMO)}</stringProp>
+          </elementProp>
+          <elementProp name="SF_SCHEMA" elementType="Argument">
+            <stringProp name="Argument.name">SF_SCHEMA</stringProp>
+            <stringProp name="Argument.value">${__P(snowflake.schema,TPCH_INTERACTIVE)}</stringProp>
+          </elementProp>
+          <elementProp name="SF_ROLE" elementType="Argument">
+            <stringProp name="Argument.name">SF_ROLE</stringProp>
+            <stringProp name="Argument.value">${__P(snowflake.role,ACCOUNTADMIN)}</stringProp>
+          </elementProp>
+          <elementProp name="THREADS" elementType="Argument">
+            <stringProp name="Argument.name">THREADS</stringProp>
+            <stringProp name="Argument.value">${__P(target.threads,700)}</stringProp>
+          </elementProp>
+          <elementProp name="RAMPUP" elementType="Argument">
+            <stringProp name="Argument.name">RAMPUP</stringProp>
+            <stringProp name="Argument.value">${__P(target.rampup,60)}</stringProp>
+          </elementProp>
+          <elementProp name="DURATION" elementType="Argument">
+            <stringProp name="Argument.name">DURATION</stringProp>
+            <stringProp name="Argument.value">${__P(target.duration,120)}</stringProp>
+          </elementProp>
+          <elementProp name="TARGET_QPS" elementType="Argument">
+            <stringProp name="Argument.name">TARGET_QPS</stringProp>
+            <stringProp name="Argument.value">${__P(target.qps,700)}</stringProp>
+          </elementProp>
+        </collectionProp>
+      </elementProp>
+    </TestPlan>
+    <hashTree>
+
+      <!-- ================================================================ -->
+      <!-- JDBC Connection Configuration                                     -->
+      <!-- ================================================================ -->
+      <JDBCDataSource guiclass="TestBeanGUI" testclass="JDBCDataSource" testname="Snowflake JDBC Connection" enabled="true">
+        <stringProp name="dataSource">snowflakePool</stringProp>
+        <stringProp name="dbUrl">jdbc:snowflake://${SF_ACCOUNT}/?db=${SF_DATABASE}&amp;schema=${SF_SCHEMA}&amp;warehouse=${SF_WAREHOUSE}&amp;role=${SF_ROLE}&amp;CLIENT_SESSION_KEEP_ALIVE=true&amp;JDBC_QUERY_RESULT_FORMAT=ARROW</stringProp>
+        <stringProp name="driver">net.snowflake.client.jdbc.SnowflakeDriver</stringProp>
+        <stringProp name="username">${SF_USER}</stringProp>
+        <stringProp name="password">${SF_PASSWORD}</stringProp>
+        <stringProp name="poolMax">${THREADS}</stringProp>
+        <stringProp name="connectionAge">0</stringProp>
+        <stringProp name="timeout">60000</stringProp>
+        <stringProp name="trimInterval">120000</stringProp>
+        <stringProp name="autocommit">true</stringProp>
+        <stringProp name="transactionIsolation">DEFAULT</stringProp>
+        <boolProp name="preinit">true</boolProp>
+        <stringProp name="initQuery">ALTER SESSION SET USE_CACHED_RESULT = FALSE</stringProp>
+        <stringProp name="checkQuery">SELECT 1</stringProp>
+        <stringProp name="keepAlive">true</stringProp>
+      </JDBCDataSource>
+      <hashTree/>
+
+      <!-- ================================================================ -->
+      <!-- Connection Warmup Thread Group                                    -->
+      <!-- Pre-creates all JDBC connections before the main test starts      -->
+      <!-- ================================================================ -->
+      <SetupThreadGroup guiclass="SetupThreadGroupGui" testclass="SetupThreadGroup" testname="Connection Warmup" enabled="true">
+        <stringProp name="ThreadGroup.num_threads">${THREADS}</stringProp>
+        <stringProp name="ThreadGroup.ramp_time">10</stringProp>
+        <boolProp name="ThreadGroup.scheduler">false</boolProp>
+        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController">
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+          <stringProp name="LoopController.loops">1</stringProp>
+        </elementProp>
+      </SetupThreadGroup>
+      <hashTree>
+        <JDBCSampler guiclass="TestBeanGUI" testclass="JDBCSampler" testname="Warmup Query" enabled="true">
+          <stringProp name="dataSource">snowflakePool</stringProp>
+          <stringProp name="queryType">Select Statement</stringProp>
+          <stringProp name="query">SELECT 1</stringProp>
+          <stringProp name="queryArguments"></stringProp>
+          <stringProp name="queryArgumentsTypes"></stringProp>
+          <stringProp name="resultVariable"></stringProp>
+          <stringProp name="variableNames"></stringProp>
+          <stringProp name="queryTimeout"></stringProp>
+          <stringProp name="resultSetMaxRows">1</stringProp>
+          <stringProp name="resultSetHandler">Store as String</stringProp>
+        </JDBCSampler>
+        <hashTree/>
+      </hashTree>
+
+      <!-- ================================================================ -->
+      <!-- Main Load Test Thread Group                                       -->
+      <!-- 700 threads, 60s ramp-up, 120s duration (60s ramp + 60s sustain) -->
+      <!-- ================================================================ -->
+      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Interactive WH Load Test" enabled="true">
+        <stringProp name="ThreadGroup.num_threads">${THREADS}</stringProp>
+        <stringProp name="ThreadGroup.ramp_time">${RAMPUP}</stringProp>
+        <boolProp name="ThreadGroup.scheduler">true</boolProp>
+        <stringProp name="ThreadGroup.duration">${DURATION}</stringProp>
+        <stringProp name="ThreadGroup.delay">0</stringProp>
+        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController">
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+          <stringProp name="LoopController.loops">-1</stringProp>
+        </elementProp>
+      </ThreadGroup>
+      <hashTree>
+
+        <ConstantThroughputTimer guiclass="TestBeanGUI" testclass="ConstantThroughputTimer" testname="QPS Throttle" enabled="true">
+          <intProp name="calcMode">1</intProp>
+          <stringProp name="throughput">${__jexl3(${TARGET_QPS} * 60)}</stringProp>
+        </ConstantThroughputTimer>
+        <hashTree/>
+
+        <!-- Random Controller: pick 1 query per iteration -->
+        <RandomController guiclass="RandomControlGui" testclass="RandomController" testname="Random Query Selector" enabled="true">
+          <intProp name="InterleaveControl.style">1</intProp>
+        </RandomController>
+        <hashTree>
+
+          <!-- Q1: Customer-pattern query - 1-URGENT / O / random date window -->
+          <JDBCSampler guiclass="TestBeanGUI" testclass="JDBCSampler" testname="Q1_Urgent_1" enabled="true">
+            <stringProp name="dataSource">snowflakePool</stringProp>
+            <stringProp name="queryType">Select Statement</stringProp>
+            <stringProp name="query">SELECT O.O_ORDERKEY AS ORDER_KEY, O.O_CUSTKEY AS CUST_KEY, COUNT(DISTINCT O.O_CUSTKEY) OVER (PARTITION BY O.O_ORDERKEY) AS ORDER_CUST_COUNT, SUM(COALESCE(O.O_TOTALPRICE, 0)) AS TOTAL_PRICE, MAX(O.O_ORDERPRIORITY) AS MAX_PRIORITY, MAX(O.O_CLERK) AS MAX_CLERK, MIN(O.O_ORDERDATE) AS MIN_ORDER_DATE, MAX(O.O_ORDERDATE) AS MAX_ORDER_DATE FROM INTERACTIVE_DEMO.TPCH_INTERACTIVE.ORDERS AS O WHERE O.O_ORDERDATE BETWEEN DATEADD(DAY, -${__Random(100,110)}, &apos;1998-08-02&apos;) AND DATEADD(DAY, -${__Random(0,7)}, &apos;1998-08-02&apos;) AND O.O_ORDERPRIORITY = &apos;1-URGENT&apos; AND O.O_ORDERSTATUS = &apos;O&apos; GROUP BY O.O_ORDERKEY, O.O_CUSTKEY</stringProp>
+            <stringProp name="queryArguments"></stringProp>
+            <stringProp name="queryArgumentsTypes"></stringProp>
+            <stringProp name="resultVariable"></stringProp>
+            <stringProp name="variableNames"></stringProp>
+            <stringProp name="queryTimeout"></stringProp>
+            <stringProp name="resultSetMaxRows"></stringProp>
+            <stringProp name="resultSetHandler">Count Records</stringProp>
+          </JDBCSampler>
+          <hashTree/>
+
+          <!-- Q2: Customer-pattern query - 2-HIGH / O / 15-day window -->
+          <JDBCSampler guiclass="TestBeanGUI" testclass="JDBCSampler" testname="Q2_High_O" enabled="true">
+            <stringProp name="dataSource">snowflakePool</stringProp>
+            <stringProp name="queryType">Select Statement</stringProp>
+            <stringProp name="query">SELECT O.O_ORDERKEY AS ORDER_KEY, O.O_CUSTKEY AS CUST_KEY, COUNT(DISTINCT O.O_CUSTKEY) OVER (PARTITION BY O.O_ORDERKEY) AS ORDER_CUST_COUNT, SUM(COALESCE(O.O_TOTALPRICE, 0)) AS TOTAL_PRICE, MAX(O.O_ORDERPRIORITY) AS MAX_PRIORITY, MAX(O.O_CLERK) AS MAX_CLERK, MIN(O.O_ORDERDATE) AS MIN_ORDER_DATE, MAX(O.O_ORDERDATE) AS MAX_ORDER_DATE FROM INTERACTIVE_DEMO.TPCH_INTERACTIVE.ORDERS AS O WHERE O.O_ORDERDATE BETWEEN DATEADD(DAY, -${__Random(100,110)}, &apos;1998-08-02&apos;) AND DATEADD(DAY, -${__Random(0,7)}, &apos;1998-08-02&apos;) AND O.O_ORDERPRIORITY = &apos;2-HIGH&apos; AND O.O_ORDERSTATUS = &apos;O&apos; GROUP BY O.O_ORDERKEY, O.O_CUSTKEY</stringProp>
+            <stringProp name="queryArguments"></stringProp>
+            <stringProp name="queryArgumentsTypes"></stringProp>
+            <stringProp name="resultVariable"></stringProp>
+            <stringProp name="variableNames"></stringProp>
+            <stringProp name="queryTimeout"></stringProp>
+            <stringProp name="resultSetMaxRows"></stringProp>
+            <stringProp name="resultSetHandler">Count Records</stringProp>
+          </JDBCSampler>
+          <hashTree/>
+
+          <!-- Q3: Customer-pattern query - 3-MEDIUM / O / random date window -->
+          <JDBCSampler guiclass="TestBeanGUI" testclass="JDBCSampler" testname="Q3_Medium_1" enabled="true">
+            <stringProp name="dataSource">snowflakePool</stringProp>
+            <stringProp name="queryType">Select Statement</stringProp>
+            <stringProp name="query">SELECT O.O_ORDERKEY AS ORDER_KEY, O.O_CUSTKEY AS CUST_KEY, COUNT(DISTINCT O.O_CUSTKEY) OVER (PARTITION BY O.O_ORDERKEY) AS ORDER_CUST_COUNT, SUM(COALESCE(O.O_TOTALPRICE, 0)) AS TOTAL_PRICE, MAX(O.O_ORDERPRIORITY) AS MAX_PRIORITY, MAX(O.O_CLERK) AS MAX_CLERK, MIN(O.O_ORDERDATE) AS MIN_ORDER_DATE, MAX(O.O_ORDERDATE) AS MAX_ORDER_DATE FROM INTERACTIVE_DEMO.TPCH_INTERACTIVE.ORDERS AS O WHERE O.O_ORDERDATE BETWEEN DATEADD(DAY, -${__Random(100,110)}, &apos;1998-08-02&apos;) AND DATEADD(DAY, -${__Random(0,7)}, &apos;1998-08-02&apos;) AND O.O_ORDERPRIORITY = &apos;3-MEDIUM&apos; AND O.O_ORDERSTATUS = &apos;O&apos; GROUP BY O.O_ORDERKEY, O.O_CUSTKEY</stringProp>
+            <stringProp name="queryArguments"></stringProp>
+            <stringProp name="queryArgumentsTypes"></stringProp>
+            <stringProp name="resultVariable"></stringProp>
+            <stringProp name="variableNames"></stringProp>
+            <stringProp name="queryTimeout"></stringProp>
+            <stringProp name="resultSetMaxRows"></stringProp>
+            <stringProp name="resultSetHandler">Count Records</stringProp>
+          </JDBCSampler>
+          <hashTree/>
+
+          <!-- Q4: Customer-pattern query - 4-NOT SPECIFIED / O / 15-day window -->
+          <JDBCSampler guiclass="TestBeanGUI" testclass="JDBCSampler" testname="Q4_NotSpec_O" enabled="true">
+            <stringProp name="dataSource">snowflakePool</stringProp>
+            <stringProp name="queryType">Select Statement</stringProp>
+            <stringProp name="query">SELECT O.O_ORDERKEY AS ORDER_KEY, O.O_CUSTKEY AS CUST_KEY, COUNT(DISTINCT O.O_CUSTKEY) OVER (PARTITION BY O.O_ORDERKEY) AS ORDER_CUST_COUNT, SUM(COALESCE(O.O_TOTALPRICE, 0)) AS TOTAL_PRICE, MAX(O.O_ORDERPRIORITY) AS MAX_PRIORITY, MAX(O.O_CLERK) AS MAX_CLERK, MIN(O.O_ORDERDATE) AS MIN_ORDER_DATE, MAX(O.O_ORDERDATE) AS MAX_ORDER_DATE FROM INTERACTIVE_DEMO.TPCH_INTERACTIVE.ORDERS AS O WHERE O.O_ORDERDATE BETWEEN DATEADD(DAY, -${__Random(100,110)}, &apos;1998-08-02&apos;) AND DATEADD(DAY, -${__Random(0,7)}, &apos;1998-08-02&apos;) AND O.O_ORDERPRIORITY = &apos;4-NOT SPECIFIED&apos; AND O.O_ORDERSTATUS = &apos;O&apos; GROUP BY O.O_ORDERKEY, O.O_CUSTKEY</stringProp>
+            <stringProp name="queryArguments"></stringProp>
+            <stringProp name="queryArgumentsTypes"></stringProp>
+            <stringProp name="resultVariable"></stringProp>
+            <stringProp name="variableNames"></stringProp>
+            <stringProp name="queryTimeout"></stringProp>
+            <stringProp name="resultSetMaxRows"></stringProp>
+            <stringProp name="resultSetHandler">Count Records</stringProp>
+          </JDBCSampler>
+          <hashTree/>
+
+          <!-- Q5: Customer-pattern query - 5-LOW / O / random date window -->
+          <JDBCSampler guiclass="TestBeanGUI" testclass="JDBCSampler" testname="Q5_Low_1" enabled="true">
+            <stringProp name="dataSource">snowflakePool</stringProp>
+            <stringProp name="queryType">Select Statement</stringProp>
+            <stringProp name="query">SELECT O.O_ORDERKEY AS ORDER_KEY, O.O_CUSTKEY AS CUST_KEY, COUNT(DISTINCT O.O_CUSTKEY) OVER (PARTITION BY O.O_ORDERKEY) AS ORDER_CUST_COUNT, SUM(COALESCE(O.O_TOTALPRICE, 0)) AS TOTAL_PRICE, MAX(O.O_ORDERPRIORITY) AS MAX_PRIORITY, MAX(O.O_CLERK) AS MAX_CLERK, MIN(O.O_ORDERDATE) AS MIN_ORDER_DATE, MAX(O.O_ORDERDATE) AS MAX_ORDER_DATE FROM INTERACTIVE_DEMO.TPCH_INTERACTIVE.ORDERS AS O WHERE O.O_ORDERDATE BETWEEN DATEADD(DAY, -${__Random(100,110)}, &apos;1998-08-02&apos;) AND DATEADD(DAY, -${__Random(0,7)}, &apos;1998-08-02&apos;) AND O.O_ORDERPRIORITY = &apos;5-LOW&apos; AND O.O_ORDERSTATUS = &apos;O&apos; GROUP BY O.O_ORDERKEY, O.O_CUSTKEY</stringProp>
+            <stringProp name="queryArguments"></stringProp>
+            <stringProp name="queryArgumentsTypes"></stringProp>
+            <stringProp name="resultVariable"></stringProp>
+            <stringProp name="variableNames"></stringProp>
+            <stringProp name="queryTimeout"></stringProp>
+            <stringProp name="resultSetMaxRows"></stringProp>
+            <stringProp name="resultSetHandler">Count Records</stringProp>
+          </JDBCSampler>
+          <hashTree/>
+
+          <!-- Q6: Customer-pattern query - 1-URGENT / O / 15-day window -->
+          <JDBCSampler guiclass="TestBeanGUI" testclass="JDBCSampler" testname="Q6_Urgent_O" enabled="true">
+            <stringProp name="dataSource">snowflakePool</stringProp>
+            <stringProp name="queryType">Select Statement</stringProp>
+            <stringProp name="query">SELECT O.O_ORDERKEY AS ORDER_KEY, O.O_CUSTKEY AS CUST_KEY, COUNT(DISTINCT O.O_CUSTKEY) OVER (PARTITION BY O.O_ORDERKEY) AS ORDER_CUST_COUNT, SUM(COALESCE(O.O_TOTALPRICE, 0)) AS TOTAL_PRICE, MAX(O.O_ORDERPRIORITY) AS MAX_PRIORITY, MAX(O.O_CLERK) AS MAX_CLERK, MIN(O.O_ORDERDATE) AS MIN_ORDER_DATE, MAX(O.O_ORDERDATE) AS MAX_ORDER_DATE FROM INTERACTIVE_DEMO.TPCH_INTERACTIVE.ORDERS AS O WHERE O.O_ORDERDATE BETWEEN DATEADD(DAY, -${__Random(100,110)}, &apos;1998-08-02&apos;) AND DATEADD(DAY, -${__Random(0,7)}, &apos;1998-08-02&apos;) AND O.O_ORDERPRIORITY = &apos;1-URGENT&apos; AND O.O_ORDERSTATUS = &apos;O&apos; GROUP BY O.O_ORDERKEY, O.O_CUSTKEY</stringProp>
+            <stringProp name="queryArguments"></stringProp>
+            <stringProp name="queryArgumentsTypes"></stringProp>
+            <stringProp name="resultVariable"></stringProp>
+            <stringProp name="variableNames"></stringProp>
+            <stringProp name="queryTimeout"></stringProp>
+            <stringProp name="resultSetMaxRows"></stringProp>
+            <stringProp name="resultSetHandler">Count Records</stringProp>
+          </JDBCSampler>
+          <hashTree/>
+
+          <!-- Q7: Customer-pattern query - 3-MEDIUM / O / 15-day window -->
+          <JDBCSampler guiclass="TestBeanGUI" testclass="JDBCSampler" testname="Q7_Medium_O" enabled="true">
+            <stringProp name="dataSource">snowflakePool</stringProp>
+            <stringProp name="queryType">Select Statement</stringProp>
+            <stringProp name="query">SELECT O.O_ORDERKEY AS ORDER_KEY, O.O_CUSTKEY AS CUST_KEY, COUNT(DISTINCT O.O_CUSTKEY) OVER (PARTITION BY O.O_ORDERKEY) AS ORDER_CUST_COUNT, SUM(COALESCE(O.O_TOTALPRICE, 0)) AS TOTAL_PRICE, MAX(O.O_ORDERPRIORITY) AS MAX_PRIORITY, MAX(O.O_CLERK) AS MAX_CLERK, MIN(O.O_ORDERDATE) AS MIN_ORDER_DATE, MAX(O.O_ORDERDATE) AS MAX_ORDER_DATE FROM INTERACTIVE_DEMO.TPCH_INTERACTIVE.ORDERS AS O WHERE O.O_ORDERDATE BETWEEN DATEADD(DAY, -${__Random(100,110)}, &apos;1998-08-02&apos;) AND DATEADD(DAY, -${__Random(0,7)}, &apos;1998-08-02&apos;) AND O.O_ORDERPRIORITY = &apos;3-MEDIUM&apos; AND O.O_ORDERSTATUS = &apos;O&apos; GROUP BY O.O_ORDERKEY, O.O_CUSTKEY</stringProp>
+            <stringProp name="queryArguments"></stringProp>
+            <stringProp name="queryArgumentsTypes"></stringProp>
+            <stringProp name="resultVariable"></stringProp>
+            <stringProp name="variableNames"></stringProp>
+            <stringProp name="queryTimeout"></stringProp>
+            <stringProp name="resultSetMaxRows"></stringProp>
+            <stringProp name="resultSetHandler">Count Records</stringProp>
+          </JDBCSampler>
+          <hashTree/>
+
+          <!-- Q8: Customer-pattern query - 4-NOT SPECIFIED / O / random date window -->
+          <JDBCSampler guiclass="TestBeanGUI" testclass="JDBCSampler" testname="Q8_NotSpec_2" enabled="true">
+            <stringProp name="dataSource">snowflakePool</stringProp>
+            <stringProp name="queryType">Select Statement</stringProp>
+            <stringProp name="query">SELECT O.O_ORDERKEY AS ORDER_KEY, O.O_CUSTKEY AS CUST_KEY, COUNT(DISTINCT O.O_CUSTKEY) OVER (PARTITION BY O.O_ORDERKEY) AS ORDER_CUST_COUNT, SUM(COALESCE(O.O_TOTALPRICE, 0)) AS TOTAL_PRICE, MAX(O.O_ORDERPRIORITY) AS MAX_PRIORITY, MAX(O.O_CLERK) AS MAX_CLERK, MIN(O.O_ORDERDATE) AS MIN_ORDER_DATE, MAX(O.O_ORDERDATE) AS MAX_ORDER_DATE FROM INTERACTIVE_DEMO.TPCH_INTERACTIVE.ORDERS AS O WHERE O.O_ORDERDATE BETWEEN DATEADD(DAY, -${__Random(100,110)}, &apos;1998-08-02&apos;) AND DATEADD(DAY, -${__Random(0,7)}, &apos;1998-08-02&apos;) AND O.O_ORDERPRIORITY = &apos;4-NOT SPECIFIED&apos; AND O.O_ORDERSTATUS = &apos;O&apos; GROUP BY O.O_ORDERKEY, O.O_CUSTKEY</stringProp>
+            <stringProp name="queryArguments"></stringProp>
+            <stringProp name="queryArgumentsTypes"></stringProp>
+            <stringProp name="resultVariable"></stringProp>
+            <stringProp name="variableNames"></stringProp>
+            <stringProp name="queryTimeout"></stringProp>
+            <stringProp name="resultSetMaxRows"></stringProp>
+            <stringProp name="resultSetHandler">Count Records</stringProp>
+          </JDBCSampler>
+          <hashTree/>
+
+        </hashTree>
+        <!-- End Random Controller -->
+
+      </hashTree>
+      <!-- End Main Thread Group -->
+
+      <!-- ================================================================ -->
+      <!-- Summary Report (single lightweight listener)                      -->
+      <!-- ================================================================ -->
+      <ResultCollector guiclass="SummaryReport" testclass="ResultCollector" testname="Summary Report" enabled="true">
+        <boolProp name="ResultCollector.error_logging">false</boolProp>
+        <objProp>
+          <name>saveConfig</name>
+          <value class="SampleSaveConfiguration">
+            <time>true</time>
+            <latency>true</latency>
+            <timestamp>true</timestamp>
+            <success>true</success>
+            <label>true</label>
+            <code>true</code>
+            <message>false</message>
+            <threadName>false</threadName>
+            <dataType>false</dataType>
+            <encoding>false</encoding>
+            <assertions>false</assertions>
+            <subresults>false</subresults>
+            <responseData>false</responseData>
+            <samplerData>false</samplerData>
+            <xml>false</xml>
+            <fieldNames>true</fieldNames>
+            <responseHeaders>false</responseHeaders>
+            <requestHeaders>false</requestHeaders>
+            <responseDataOnError>false</responseDataOnError>
+            <saveAssertionResultsFailureMessage>false</saveAssertionResultsFailureMessage>
+            <assertionsResultsToSave>0</assertionsResultsToSave>
+            <bytes>true</bytes>
+            <connectTime>true</connectTime>
+          </value>
+        </objProp>
+        <stringProp name="filename"></stringProp>
+      </ResultCollector>
+      <hashTree/>
+
+    </hashTree>
+  </hashTree>
+</jmeterTestPlan>
