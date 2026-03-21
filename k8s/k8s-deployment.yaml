@@ -1,0 +1,170 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: jmeter-test
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: snowflake-credentials
+  namespace: jmeter-test
+type: Opaque
+stringData:
+  SNOWFLAKE_JDBC_URL: "jdbc:snowflake://SFPSCOGS-KAPILARORA_AWS_POLARIS_UNISTORE.snowflakecomputing.com/?warehouse=NEW_INT_WH&db=DEMO&schema=DEMO"
+  SNOWFLAKE_USER: "<YOUR_USERNAME>"
+  SNOWFLAKE_PASSWORD: "<YOUR_PASSWORD_OR_TOKEN>"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jmeter-test-config
+  namespace: jmeter-test
+data:
+  test.jmx: |
+    <?xml version="1.0" encoding="UTF-8"?>
+    <jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3">
+      <hashTree>
+        <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="Snowflake K8s Test" enabled="true">
+          <boolProp name="TestPlan.functional_mode">false</boolProp>
+          <boolProp name="TestPlan.tearDown_on_shutdown">true</boolProp>
+          <boolProp name="TestPlan.serialize_threadgroups">false</boolProp>
+          <elementProp name="TestPlan.user_defined_variables" elementType="Arguments"/>
+        </TestPlan>
+        <hashTree>
+          <JDBCDataSource guiclass="TestBeanGUI" testclass="JDBCDataSource" testname="Snowflake JDBC Connection" enabled="true">
+            <boolProp name="autocommit">true</boolProp>
+            <stringProp name="checkQuery"></stringProp>
+            <stringProp name="connectionAge">300000</stringProp>
+            <stringProp name="connectionProperties">USE_CACHED_RESULT=false;CLIENT_SESSION_KEEP_ALIVE=true;JDBC_QUERY_RESULT_FORMAT=ARROW;CLIENT_PREFETCH_THREADS=1;CLIENT_RESULT_CHUNK_SIZE=16;CLIENT_MEMORY_LIMIT=2048;CLIENT_OUT_OF_BAND_TELEMETRY_ENABLED=false;NET_TIMEOUT=300;CLIENT_METADATA_REQUEST_USE_CONNECTION_CTX=true;ENABLE_STAGE_S3_PRIVATELINK_FOR_US_EAST_1=false</stringProp>
+            <stringProp name="dataSource">SnowflakePool</stringProp>
+            <stringProp name="dbUrl">${__P(snowflake.url)}</stringProp>
+            <stringProp name="driver">net.snowflake.client.jdbc.SnowflakeDriver</stringProp>
+            <stringProp name="initQuery"></stringProp>
+            <boolProp name="keepAlive">true</boolProp>
+            <stringProp name="password">${__P(snowflake.password)}</stringProp>
+            <stringProp name="poolMax">${__P(snowflake.poolMax,40)}</stringProp>
+            <stringProp name="timeout">600000</stringProp>
+            <stringProp name="transactionIsolation">DEFAULT</stringProp>
+            <stringProp name="trimInterval">60000</stringProp>
+            <stringProp name="username">${__P(snowflake.username)}</stringProp>
+          </JDBCDataSource>
+          <hashTree/>
+          <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Performance Test" enabled="true">
+            <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+            <elementProp name="ThreadGroup.main_controller" elementType="LoopController">
+              <boolProp name="LoopController.continue_forever">false</boolProp>
+              <intProp name="LoopController.loops">-1</intProp>
+            </elementProp>
+            <stringProp name="ThreadGroup.num_threads">${__P(snowflake.threads,40)}</stringProp>
+            <stringProp name="ThreadGroup.ramp_time">1</stringProp>
+            <boolProp name="ThreadGroup.scheduler">true</boolProp>
+            <stringProp name="ThreadGroup.duration">${__P(test.duration,600)}</stringProp>
+            <stringProp name="ThreadGroup.delay">0</stringProp>
+          </ThreadGroup>
+          <hashTree>
+            <ConstantTimer guiclass="ConstantTimerGui" testclass="ConstantTimer" testname="Think Time" enabled="true">
+              <stringProp name="ConstantTimer.delay">50</stringProp>
+            </ConstantTimer>
+            <hashTree/>
+            <JDBCSampler guiclass="TestBeanGUI" testclass="JDBCSampler" testname="Performance Query" enabled="true">
+              <stringProp name="dataSource">SnowflakePool</stringProp>
+              <stringProp name="queryType">Select Statement</stringProp>
+              <stringProp name="query">SELECT
+        CR.CR_ORDER_NUMBER AS ORDER_KEY,
+        CR.CR_REFUNDED_CUSTOMER_SK AS CUST_KEY,
+        COUNT(DISTINCT CR.CR_REFUNDED_CUSTOMER_SK) OVER (PARTITION BY CR.CR_ORDER_NUMBER) AS ORDER_CUST_COUNT,
+        SUM(COALESCE(CR.CR_RETURN_AMOUNT, 0)) AS TOTAL_RETURN_AMOUNT,
+        MAX(CR.CR_REASON_SK) AS MAX_REASON,
+        MAX(CR.CR_CALL_CENTER_SK) AS MAX_CALL_CENTER,
+        MIN(CR.CR_RETURNED_DATE_SK) AS MIN_RETURN_DATE_SK,
+        MAX(CR.CR_RETURNED_DATE_SK) AS MAX_RETURN_DATE_SK
+    FROM DEMO.DEMO.ORDERS_INTERACTIVE AS CR
+    WHERE CR.CR_RETURNED_DATE_SK BETWEEN 2452912 AND 2452924
+      AND CR.CR_WAREHOUSE_SK IS NOT NULL
+    GROUP BY CR.CR_ORDER_NUMBER, CR.CR_REFUNDED_CUSTOMER_SK</stringProp>
+              <stringProp name="queryArguments"></stringProp>
+              <stringProp name="queryArgumentsTypes"></stringProp>
+              <stringProp name="resultVariable"></stringProp>
+              <stringProp name="variableNames"></stringProp>
+              <stringProp name="queryTimeout">300</stringProp>
+              <stringProp name="resultSetMaxRows"></stringProp>
+              <stringProp name="resultSetHandler">Count Records</stringProp>
+            </JDBCSampler>
+            <hashTree/>
+          </hashTree>
+        </hashTree>
+      </hashTree>
+    </jmeterTestPlan>
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jmeter-workers
+  namespace: jmeter-test
+spec:
+  replicas: 15
+  selector:
+    matchLabels:
+      app: jmeter-worker
+  template:
+    metadata:
+      labels:
+        app: jmeter-worker
+    spec:
+      containers:
+      - name: jmeter
+        image: 087354435437.dkr.ecr.ap-northeast-3.amazonaws.com/jmeter-snowflake:latest
+        imagePullPolicy: Always
+        resources:
+          requests:
+            memory: "3Gi"
+            cpu: "2"
+          limits:
+            memory: "4Gi"
+            cpu: "4"
+        env:
+        - name: THREADS_PER_WORKER
+          value: "80"
+        - name: POOL_SIZE
+          value: "30"
+        - name: DURATION
+          value: "900"
+        - name: SNOWFLAKE_JDBC_URL
+          valueFrom:
+            secretKeyRef:
+              name: snowflake-credentials
+              key: SNOWFLAKE_JDBC_URL
+        - name: SNOWFLAKE_USER
+          valueFrom:
+            secretKeyRef:
+              name: snowflake-credentials
+              key: SNOWFLAKE_USER
+        - name: SNOWFLAKE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: snowflake-credentials
+              key: SNOWFLAKE_PASSWORD
+        volumeMounts:
+        - name: jmeter-config
+          mountPath: /jmeter/test.jmx
+          subPath: test.jmx
+        - name: results
+          mountPath: /results
+      volumes:
+      - name: jmeter-config
+        configMap:
+          name: jmeter-test-config
+      - name: results
+        emptyDir: {}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - jmeter-worker
+              topologyKey: kubernetes.io/hostname
