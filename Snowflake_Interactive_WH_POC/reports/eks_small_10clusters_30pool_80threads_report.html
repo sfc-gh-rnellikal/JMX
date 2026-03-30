@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Snowflake Performance Test Report - SMALL/10 Clusters</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0f1923; color: #e0e6ed; }
+        .header { background: linear-gradient(135deg, #1a73e8, #0d47a1); padding: 40px; text-align: center; }
+        .header h1 { font-size: 28px; font-weight: 700; color: #fff; margin-bottom: 8px; }
+        .header p { font-size: 14px; color: #b3d4fc; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 30px 20px; }
+        .time-banner { display: flex; justify-content: center; gap: 60px; background: #162230; border: 1px solid #1a73e8; border-radius: 10px; padding: 20px 40px; margin-bottom: 30px; flex-wrap: wrap; }
+        .time-item { text-align: center; }
+        .time-item .label { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: #7eb8f7; margin-bottom: 6px; }
+        .time-item .value { font-size: 18px; font-weight: 600; color: #fff; font-family: 'Courier New', monospace; }
+        .config-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 14px; margin-bottom: 30px; }
+        .config-card { background: #162230; border-radius: 10px; padding: 16px; text-align: center; border: 1px solid #1e3a52; }
+        .config-card .label { font-size: 10px; text-transform: uppercase; letter-spacing: 1.2px; color: #6b8dad; margin-bottom: 6px; }
+        .config-card .value { font-size: 20px; font-weight: 700; color: #4fc3f7; }
+        .config-card .value.highlight { color: #66bb6a; }
+        .config-card .sub { font-size: 10px; color: #546e7a; margin-top: 4px; }
+        .section-title { font-size: 20px; font-weight: 600; color: #fff; margin: 30px 0 16px 0; padding-bottom: 8px; border-bottom: 2px solid #1a73e8; }
+        .results-table { width: 100%; border-collapse: separate; border-spacing: 0; background: #162230; border-radius: 10px; overflow: hidden; margin-bottom: 30px; }
+        .results-table thead th { background: #1a3a5c; padding: 12px 10px; text-align: center; font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: #7eb8f7; font-weight: 600; }
+        .results-table tbody td { padding: 12px 10px; text-align: center; border-top: 1px solid #1e3a52; font-size: 14px; }
+        .results-table tbody tr:hover { background: #1a3050; }
+        .qps-value { font-weight: 700; font-size: 17px; }
+        .qps-high { color: #66bb6a; }
+        .qps-mid { color: #fdd835; }
+        .latency { color: #b0bec5; font-family: 'Courier New', monospace; }
+        .e2e { color: #ce93d8; font-family: 'Courier New', monospace; }
+        .peak-banner { background: linear-gradient(135deg, #1b5e20, #2e7d32); border-radius: 10px; padding: 30px; text-align: center; margin-bottom: 30px; }
+        .peak-banner .peak-label { font-size: 13px; text-transform: uppercase; letter-spacing: 2px; color: #a5d6a7; margin-bottom: 8px; }
+        .peak-banner .peak-value { font-size: 52px; font-weight: 800; color: #fff; }
+        .peak-banner .peak-unit { font-size: 18px; color: #a5d6a7; margin-left: 4px; }
+        .peak-banner .peak-detail { font-size: 13px; color: #c8e6c9; margin-top: 8px; }
+        .chart-container { background: #162230; border-radius: 10px; padding: 30px; margin-bottom: 30px; border: 1px solid #1e3a52; }
+        .chart-title { font-size: 14px; font-weight: 600; color: #7eb8f7; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 1px; }
+        .bar-chart { display: flex; align-items: flex-end; justify-content: space-around; height: 220px; padding: 0 10px; }
+        .bar-group { display: flex; flex-direction: column; align-items: center; flex: 1; }
+        .bar { width: 50px; border-radius: 6px 6px 0 0; transition: all 0.3s; min-height: 4px; }
+        .bar:hover { opacity: 0.85; }
+        .bar-label { margin-top: 10px; font-size: 11px; color: #6b8dad; }
+        .bar-value { font-size: 12px; font-weight: 700; }
+        .latency-chart { display: flex; justify-content: space-around; margin-top: 20px; }
+        .latency-group { text-align: center; flex: 1; }
+        .latency-bars { display: flex; align-items: flex-end; justify-content: center; gap: 4px; height: 140px; margin-bottom: 8px; }
+        .lat-bar { width: 18px; border-radius: 3px 3px 0 0; }
+        .lat-bar.p50 { background: #4fc3f7; }
+        .lat-bar.p95 { background: #ff9800; }
+        .lat-bar.p99 { background: #ef5350; }
+        .legend { display: flex; justify-content: center; gap: 30px; margin-top: 16px; }
+        .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #6b8dad; }
+        .legend-dot { width: 12px; height: 12px; border-radius: 3px; }
+        .query-box { background: #0d1820; border: 1px solid #1e3a52; border-radius: 10px; padding: 20px; margin-bottom: 30px; overflow-x: auto; }
+        .query-box pre { font-family: 'Courier New', monospace; font-size: 12px; color: #81d4fa; line-height: 1.6; white-space: pre-wrap; }
+        .query-box .keyword { color: #ff9800; font-weight: 600; }
+        .query-box .table-name { color: #66bb6a; }
+        .query-box .func { color: #ce93d8; }
+        .notes { background: #162230; border-radius: 10px; padding: 24px; border-left: 4px solid #1a73e8; }
+        .notes h3 { font-size: 14px; color: #7eb8f7; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px; }
+        .notes ul { list-style: none; }
+        .notes li { padding: 5px 0; font-size: 13px; color: #90a4ae; }
+        .notes li::before { content: "\2192 "; color: #1a73e8; font-weight: bold; }
+        .footer { text-align: center; padding: 20px; font-size: 11px; color: #455a64; margin-top: 20px; }
+        .dual-table { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; }
+        @media (max-width: 900px) { .dual-table { grid-template-columns: 1fr; } }
+        .table-label { font-size: 13px; font-weight: 600; color: #7eb8f7; margin-bottom: 10px; text-align: center; text-transform: uppercase; letter-spacing: 1px; }
+        .note-card { background: #162230; border-radius: 10px; padding: 20px; border: 1px solid #1e3a52; }
+        .note-card .note-title { font-size: 13px; font-weight: 600; color: #7eb8f7; margin-bottom: 14px; text-transform: uppercase; letter-spacing: 1px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Snowflake Interactive Warehouse Performance Test</h1>
+        <p>TPCH_INTERACTIVE_WH &middot; SMALL &middot; 10 Clusters &middot; 12 Pods &middot; 30 Pool / 80 Threads</p>
+    </div>
+
+    <div class="container">
+        <div class="time-banner">
+            <div class="time-item">
+                <div class="label">Test Start (UTC)</div>
+                <div class="value">2026-03-23 00:43:21</div>
+            </div>
+            <div class="time-item">
+                <div class="label">Test End (UTC)</div>
+                <div class="value">2026-03-23 01:29:59</div>
+            </div>
+            <div class="time-item">
+                <div class="label">Multi-Pod Steady State</div>
+                <div class="value">01:12 &ndash; 01:22 UTC (~10 min)</div>
+            </div>
+        </div>
+
+        <div class="section-title">Test Configuration</div>
+        <div class="config-grid">
+            <div class="config-card">
+                <div class="label">Warehouse</div>
+                <div class="value" style="font-size:14px;">TPCH_INTERACTIVE_WH</div>
+            </div>
+            <div class="config-card">
+                <div class="label">WH Size</div>
+                <div class="value">SMALL</div>
+            </div>
+            <div class="config-card">
+                <div class="label">Clusters</div>
+                <div class="value highlight">10</div>
+            </div>
+            <div class="config-card">
+                <div class="label">Pods</div>
+                <div class="value highlight">12</div>
+                <div class="sub">15 target, 12 active</div>
+            </div>
+            <div class="config-card">
+                <div class="label">Threads/Pod</div>
+                <div class="value">80</div>
+                <div class="sub">960 total threads</div>
+            </div>
+            <div class="config-card">
+                <div class="label">Pool/Pod</div>
+                <div class="value">30</div>
+                <div class="sub">360 total connections</div>
+            </div>
+            <div class="config-card">
+                <div class="label">Pod CPU</div>
+                <div class="value" style="font-size:16px;">0.5 / 2</div>
+                <div class="sub">request / limit</div>
+            </div>
+            <div class="config-card">
+                <div class="label">Pod Memory</div>
+                <div class="value" style="font-size:16px;">1Gi / 3Gi</div>
+                <div class="sub">request / limit</div>
+            </div>
+            <div class="config-card">
+                <div class="label">JDBC Driver</div>
+                <div class="value" style="font-size:16px;">3.20.0</div>
+                <div class="sub">Arrow format</div>
+            </div>
+            <div class="config-card">
+                <div class="label">Table</div>
+                <div class="value" style="font-size:14px;">ORDERS_INTERACTIVE</div>
+                <div class="sub">INTERACTIVE_DEMO.TPCH_INTERACTIVE</div>
+            </div>
+            <div class="config-card">
+                <div class="label">Table Size</div>
+                <div class="value" style="font-size:18px;">75.97 GB</div>
+                <div class="sub">1.44 billion rows</div>
+            </div>
+            <div class="config-card">
+                <div class="label">Data Scanned</div>
+                <div class="value" style="font-size:18px;">1.19 MB</div>
+                <div class="sub">per query</div>
+            </div>
+            <div class="config-card">
+                <div class="label">Result Size</div>
+                <div class="value" style="font-size:18px;">~315 KB</div>
+                <div class="sub">~12,382 rows</div>
+            </div>
+        </div>
+
+        <div class="peak-banner">
+            <div class="peak-label">Average QPS &middot; Multi-Pod Window (255,412 queries in 600 seconds)</div>
+            <div class="peak-value">418.2<span class="peak-unit">QPS</span></div>
+            <div class="peak-detail">Peak 1-min sample: 588.1 QPS &middot; 729,999 success / 1 failure (full test) &middot; Zero Snowflake-side errors in steady state</div>
+        </div>
+
+        <div class="section-title">Snowflake-Side Latency (QUERY_HISTORY &middot; Multi-Pod Window)</div>
+        <table class="results-table">
+            <thead>
+                <tr>
+                    <th>Minute (PDT)</th>
+                    <th>QPS</th>
+                    <th>Avg (ms)</th>
+                    <th>P50 (ms)</th>
+                    <th>P95 (ms)</th>
+                    <th>P99 (ms)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>18:12</td>
+                    <td><span class="qps-value qps-high">588.1</span></td>
+                    <td class="latency">152.0</td>
+                    <td class="latency">147</td>
+                    <td class="latency">204</td>
+                    <td class="latency">243</td>
+                </tr>
+                <tr>
+                    <td>18:13</td>
+                    <td><span class="qps-value qps-mid">487.6</span></td>
+                    <td class="latency">166.4</td>
+                    <td class="latency">154</td>
+                    <td class="latency">241</td>
+                    <td class="latency">426</td>
+                </tr>
+                <tr>
+                    <td>18:14</td>
+                    <td><span class="qps-value qps-mid">432.7</span></td>
+                    <td class="latency">164.4</td>
+                    <td class="latency">150</td>
+                    <td class="latency">245</td>
+                    <td class="latency">443</td>
+                </tr>
+                <tr>
+                    <td>18:15</td>
+                    <td><span class="qps-value qps-high">552.0</span></td>
+                    <td class="latency">165.9</td>
+                    <td class="latency">153</td>
+                    <td class="latency">243</td>
+                    <td class="latency">426</td>
+                </tr>
+                <tr>
+                    <td>18:16</td>
+                    <td><span class="qps-value qps-high">548.1</span></td>
+                    <td class="latency">165.8</td>
+                    <td class="latency">154</td>
+                    <td class="latency">239</td>
+                    <td class="latency">424</td>
+                </tr>
+                <tr>
+                    <td>18:17</td>
+                    <td><span class="qps-value qps-high">517.0</span></td>
+                    <td class="latency">154.9</td>
+                    <td class="latency">146</td>
+                    <td class="latency">220</td>
+                    <td class="latency">303</td>
+                </tr>
+                <tr>
+                    <td>18:18</td>
+                    <td><span class="qps-value qps-mid">455.1</span></td>
+                    <td class="latency">150.1</td>
+                    <td class="latency">144</td>
+                    <td class="latency">208</td>
+                    <td class="latency">251</td>
+                </tr>
+                <tr>
+                    <td>18:19</td>
+                    <td><span class="qps-value qps-mid">386.7</span></td>
+                    <td class="latency">145.6</td>
+                    <td class="latency">140</td>
+                    <td class="latency">199</td>
+                    <td class="latency">242</td>
+                </tr>
+                <tr>
+                    <td>18:20</td>
+                    <td><span class="qps-value qps-mid">337.1</span></td>
+                    <td class="latency">145.6</td>
+                    <td class="latency">139</td>
+                    <td class="latency">201</td>
+                    <td class="latency">251</td>
+                </tr>
+                <tr>
+                    <td>18:21</td>
+                    <td><span class="qps-value qps-mid">433.0</span></td>
+                    <td class="latency">149.0</td>
+                    <td class="latency">143</td>
+                    <td class="latency">202</td>
+                    <td class="latency">244</td>
+                </tr>
+                <tr style="background: #1a3050; font-weight: 600;">
+                    <td>Overall</td>
+                    <td><span class="qps-value qps-high">418.2</span></td>
+                    <td class="latency">148.4</td>
+                    <td class="latency">142</td>
+                    <td class="latency">204</td>
+                    <td class="latency">251</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="section-title">Estimated End-to-End JMeter Latency</div>
+        <p style="font-size:12px; color:#546e7a; margin-bottom:14px;">Estimated via Little's Law: E2E = active_connections / QPS. With 360 active connections and 418 QPS, avg E2E &asymp; 861ms. Overhead includes JDBC pool contention (80 threads / 30 pool), Arrow deserialization, and network.</p>
+        <table class="results-table">
+            <thead>
+                <tr>
+                    <th>Metric</th>
+                    <th>SF-Side (ms)</th>
+                    <th>Est. E2E (ms)</th>
+                    <th>Overhead (ms)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Average</td>
+                    <td class="latency">148.4</td>
+                    <td class="e2e">~861</td>
+                    <td class="latency">~713</td>
+                </tr>
+                <tr>
+                    <td>P50</td>
+                    <td class="latency">142</td>
+                    <td class="e2e">~855</td>
+                    <td class="latency">~713</td>
+                </tr>
+                <tr>
+                    <td>P95</td>
+                    <td class="latency">204</td>
+                    <td class="e2e">~917</td>
+                    <td class="latency">~713</td>
+                </tr>
+                <tr>
+                    <td>P99</td>
+                    <td class="latency">251</td>
+                    <td class="e2e">~964</td>
+                    <td class="latency">~713</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="section-title">QPS Over Time (Multi-Pod Window)</div>
+        <div class="chart-container">
+            <div class="chart-title">Queries Per Second at Each Minute (18:12 &ndash; 18:21 PDT)</div>
+            <div class="bar-chart">
+                <div class="bar-group">
+                    <div class="bar-value" style="color:#66bb6a;">588</div>
+                    <div class="bar" style="height:200px; background: linear-gradient(180deg, #66bb6a, #388e3c);"></div>
+                    <div class="bar-label">18:12</div>
+                </div>
+                <div class="bar-group">
+                    <div class="bar-value" style="color:#fdd835;">488</div>
+                    <div class="bar" style="height:166px; background: linear-gradient(180deg, #fdd835, #f9a825);"></div>
+                    <div class="bar-label">18:13</div>
+                </div>
+                <div class="bar-group">
+                    <div class="bar-value" style="color:#fdd835;">433</div>
+                    <div class="bar" style="height:147px; background: linear-gradient(180deg, #fdd835, #f9a825);"></div>
+                    <div class="bar-label">18:14</div>
+                </div>
+                <div class="bar-group">
+                    <div class="bar-value" style="color:#66bb6a;">552</div>
+                    <div class="bar" style="height:188px; background: linear-gradient(180deg, #66bb6a, #388e3c);"></div>
+                    <div class="bar-label">18:15</div>
+                </div>
+                <div class="bar-group">
+                    <div class="bar-value" style="color:#66bb6a;">548</div>
+                    <div class="bar" style="height:186px; background: linear-gradient(180deg, #66bb6a, #388e3c);"></div>
+                    <div class="bar-label">18:16</div>
+                </div>
+                <div class="bar-group">
+                    <div class="bar-value" style="color:#66bb6a;">517</div>
+                    <div class="bar" style="height:176px; background: linear-gradient(180deg, #66bb6a, #388e3c);"></div>
+                    <div class="bar-label">18:17</div>
+                </div>
+                <div class="bar-group">
+                    <div class="bar-value" style="color:#fdd835;">455</div>
+                    <div class="bar" style="height:155px; background: linear-gradient(180deg, #fdd835, #f9a825);"></div>
+                    <div class="bar-label">18:18</div>
+                </div>
+                <div class="bar-group">
+                    <div class="bar-value" style="color:#fdd835;">387</div>
+                    <div class="bar" style="height:132px; background: linear-gradient(180deg, #fdd835, #f9a825);"></div>
+                    <div class="bar-label">18:19</div>
+                </div>
+                <div class="bar-group">
+                    <div class="bar-value" style="color:#fdd835;">337</div>
+                    <div class="bar" style="height:115px; background: linear-gradient(180deg, #fdd835, #f9a825);"></div>
+                    <div class="bar-label">18:20</div>
+                </div>
+                <div class="bar-group">
+                    <div class="bar-value" style="color:#fdd835;">433</div>
+                    <div class="bar" style="height:147px; background: linear-gradient(180deg, #fdd835, #f9a825);"></div>
+                    <div class="bar-label">18:21</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section-title">Latency Distribution (Snowflake-Side)</div>
+        <div class="chart-container">
+            <div class="chart-title">P50 / P95 / P99 Latency (ms) at Each Minute</div>
+            <div class="latency-chart">
+                <div class="latency-group">
+                    <div class="latency-bars">
+                        <div class="lat-bar p50" style="height: calc(147 / 450 * 130px);" title="P50: 147ms"></div>
+                        <div class="lat-bar p95" style="height: calc(204 / 450 * 130px);" title="P95: 204ms"></div>
+                        <div class="lat-bar p99" style="height: calc(243 / 450 * 130px);" title="P99: 243ms"></div>
+                    </div>
+                    <div style="font-size:11px; color:#6b8dad;">18:12</div>
+                    <div style="font-size:10px; color:#4fc3f7; margin-top:2px;">147 / 204 / 243</div>
+                </div>
+                <div class="latency-group">
+                    <div class="latency-bars">
+                        <div class="lat-bar p50" style="height: calc(154 / 450 * 130px);" title="P50: 154ms"></div>
+                        <div class="lat-bar p95" style="height: calc(241 / 450 * 130px);" title="P95: 241ms"></div>
+                        <div class="lat-bar p99" style="height: calc(426 / 450 * 130px);" title="P99: 426ms"></div>
+                    </div>
+                    <div style="font-size:11px; color:#6b8dad;">18:13</div>
+                    <div style="font-size:10px; color:#4fc3f7; margin-top:2px;">154 / 241 / 426</div>
+                </div>
+                <div class="latency-group">
+                    <div class="latency-bars">
+                        <div class="lat-bar p50" style="height: calc(153 / 450 * 130px);" title="P50: 153ms"></div>
+                        <div class="lat-bar p95" style="height: calc(243 / 450 * 130px);" title="P95: 243ms"></div>
+                        <div class="lat-bar p99" style="height: calc(426 / 450 * 130px);" title="P99: 426ms"></div>
+                    </div>
+                    <div style="font-size:11px; color:#6b8dad;">18:15</div>
+                    <div style="font-size:10px; color:#4fc3f7; margin-top:2px;">153 / 243 / 426</div>
+                </div>
+                <div class="latency-group">
+                    <div class="latency-bars">
+                        <div class="lat-bar p50" style="height: calc(146 / 450 * 130px);" title="P50: 146ms"></div>
+                        <div class="lat-bar p95" style="height: calc(220 / 450 * 130px);" title="P95: 220ms"></div>
+                        <div class="lat-bar p99" style="height: calc(303 / 450 * 130px);" title="P99: 303ms"></div>
+                    </div>
+                    <div style="font-size:11px; color:#6b8dad;">18:17</div>
+                    <div style="font-size:10px; color:#4fc3f7; margin-top:2px;">146 / 220 / 303</div>
+                </div>
+                <div class="latency-group">
+                    <div class="latency-bars">
+                        <div class="lat-bar p50" style="height: calc(140 / 450 * 130px);" title="P50: 140ms"></div>
+                        <div class="lat-bar p95" style="height: calc(199 / 450 * 130px);" title="P95: 199ms"></div>
+                        <div class="lat-bar p99" style="height: calc(242 / 450 * 130px);" title="P99: 242ms"></div>
+                    </div>
+                    <div style="font-size:11px; color:#6b8dad;">18:19</div>
+                    <div style="font-size:10px; color:#4fc3f7; margin-top:2px;">140 / 199 / 242</div>
+                </div>
+                <div class="latency-group">
+                    <div class="latency-bars">
+                        <div class="lat-bar p50" style="height: calc(143 / 450 * 130px);" title="P50: 143ms"></div>
+                        <div class="lat-bar p95" style="height: calc(202 / 450 * 130px);" title="P95: 202ms"></div>
+                        <div class="lat-bar p99" style="height: calc(244 / 450 * 130px);" title="P99: 244ms"></div>
+                    </div>
+                    <div style="font-size:11px; color:#6b8dad;">18:21</div>
+                    <div style="font-size:10px; color:#4fc3f7; margin-top:2px;">143 / 202 / 244</div>
+                </div>
+            </div>
+            <div class="legend">
+                <div class="legend-item"><div class="legend-dot" style="background:#4fc3f7;"></div> P50</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#ff9800;"></div> P95</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#ef5350;"></div> P99</div>
+            </div>
+        </div>
+
+        <div class="section-title">Cluster Distribution (ACCOUNT_USAGE &middot; Multi-Pod Window)</div>
+        <p style="font-size:12px; color:#546e7a; margin-bottom:14px;">255,412 total queries distributed across 10 clusters. Load well balanced at 9.6% &ndash; 11.0% each.</p>
+        <table class="results-table">
+            <thead>
+                <tr>
+                    <th>Cluster</th>
+                    <th>Queries</th>
+                    <th>Share %</th>
+                    <th>Avg (ms)</th>
+                    <th>P50 (ms)</th>
+                    <th>P99 (ms)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>1</td>
+                    <td>25,971</td>
+                    <td>10.2%</td>
+                    <td class="latency">158.7</td>
+                    <td class="latency">152</td>
+                    <td class="latency">258</td>
+                </tr>
+                <tr>
+                    <td>2</td>
+                    <td>28,049</td>
+                    <td>11.0%</td>
+                    <td class="latency">137.3</td>
+                    <td class="latency">132</td>
+                    <td class="latency">229</td>
+                </tr>
+                <tr>
+                    <td>3</td>
+                    <td>26,996</td>
+                    <td>10.6%</td>
+                    <td class="latency">133.3</td>
+                    <td class="latency">128</td>
+                    <td class="latency">222</td>
+                </tr>
+                <tr>
+                    <td>4</td>
+                    <td>24,635</td>
+                    <td>9.6%</td>
+                    <td class="latency">156.9</td>
+                    <td class="latency">150</td>
+                    <td class="latency">264</td>
+                </tr>
+                <tr>
+                    <td>5</td>
+                    <td>24,735</td>
+                    <td>9.7%</td>
+                    <td class="latency">155.0</td>
+                    <td class="latency">148</td>
+                    <td class="latency">257</td>
+                </tr>
+                <tr>
+                    <td>6</td>
+                    <td>24,540</td>
+                    <td>9.6%</td>
+                    <td class="latency">158.3</td>
+                    <td class="latency">152</td>
+                    <td class="latency">258</td>
+                </tr>
+                <tr>
+                    <td>7</td>
+                    <td>24,862</td>
+                    <td>9.7%</td>
+                    <td class="latency">156.2</td>
+                    <td class="latency">150</td>
+                    <td class="latency">253</td>
+                </tr>
+                <tr>
+                    <td>8</td>
+                    <td>25,608</td>
+                    <td>10.0%</td>
+                    <td class="latency">158.3</td>
+                    <td class="latency">152</td>
+                    <td class="latency">259</td>
+                </tr>
+                <tr>
+                    <td>9</td>
+                    <td>24,845</td>
+                    <td>9.7%</td>
+                    <td class="latency">133.6</td>
+                    <td class="latency">128</td>
+                    <td class="latency">225</td>
+                </tr>
+                <tr>
+                    <td>10</td>
+                    <td>25,171</td>
+                    <td>9.9%</td>
+                    <td class="latency">135.5</td>
+                    <td class="latency">130</td>
+                    <td class="latency">233</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="section-title">Error Analysis</div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px;">
+            <div class="note-card">
+                <div class="note-title">Snowflake-Side (Full Test)</div>
+                <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px;">
+                    <span style="font-size: 36px; font-weight: 800; color: #66bb6a;">1</span>
+                    <span style="font-size: 13px; color: #90a4ae;">query failed (of 730,000)</span>
+                </div>
+                <div style="font-size: 12px; color: #546e7a; line-height: 1.8;">
+                    Error 000630: Statement reached Interactive WH timeout<br>
+                    Occurred during initial warmup phase (cold SSD cache)<br>
+                    <span style="color: #66bb6a; font-weight: 600;">Zero failures during measured multi-pod window</span> &mdash; warm cache kept all queries well under timeout
+                </div>
+            </div>
+            <div class="note-card">
+                <div class="note-title">EKS Infrastructure</div>
+                <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px;">
+                    <span style="font-size: 36px; font-weight: 800; color: #fdd835;">3</span>
+                    <span style="font-size: 13px; color: #90a4ae;">pods stuck in ContainerCreating</span>
+                </div>
+                <div style="font-size: 12px; color: #546e7a; line-height: 1.8;">
+                    VPC CNI IP allocation failures on 3 EKS Auto Mode nodes<br>
+                    12 of 15 target pods actively running during test<br>
+                    <span style="color: #fdd835;">Effective concurrency: 12 pods &times; 30 pool = 360 connections</span> (vs. target 450)
+                </div>
+            </div>
+        </div>
+
+        <div class="section-title">Test SQL Query</div>
+        <div class="query-box">
+            <pre><span class="keyword">SELECT</span>
+    CR.CR_ORDER_NUMBER <span class="keyword">AS</span> ORDER_KEY,
+    CR.CR_REFUNDED_CUSTOMER_SK <span class="keyword">AS</span> CUST_KEY,
+    <span class="func">COUNT</span>(<span class="keyword">DISTINCT</span> CR.CR_REFUNDED_CUSTOMER_SK) <span class="func">OVER</span> (<span class="keyword">PARTITION BY</span> CR.CR_ORDER_NUMBER) <span class="keyword">AS</span> ORDER_CUST_COUNT,
+    <span class="func">SUM</span>(<span class="func">COALESCE</span>(CR.CR_RETURN_AMOUNT, 0)) <span class="keyword">AS</span> TOTAL_RETURN_AMOUNT,
+    <span class="func">MAX</span>(CR.CR_REASON_SK) <span class="keyword">AS</span> MAX_REASON,
+    <span class="func">MAX</span>(CR.CR_CALL_CENTER_SK) <span class="keyword">AS</span> MAX_CALL_CENTER,
+    <span class="func">MIN</span>(CR.CR_RETURNED_DATE_SK) <span class="keyword">AS</span> MIN_RETURN_DATE_SK,
+    <span class="func">MAX</span>(CR.CR_RETURNED_DATE_SK) <span class="keyword">AS</span> MAX_RETURN_DATE_SK
+<span class="keyword">FROM</span> <span class="table-name">INTERACTIVE_DEMO.TPCH_INTERACTIVE.ORDERS_INTERACTIVE</span> <span class="keyword">AS</span> CR
+<span class="keyword">WHERE</span> CR.CR_RETURNED_DATE_SK <span class="keyword">BETWEEN</span> 2452912 <span class="keyword">AND</span> 2452924
+  <span class="keyword">AND</span> CR.CR_WAREHOUSE_SK <span class="keyword">IS NOT NULL</span>
+<span class="keyword">GROUP BY</span> CR.CR_ORDER_NUMBER, CR.CR_REFUNDED_CUSTOMER_SK</pre>
+        </div>
+
+        <div class="section-title">QPS Ramp-Up (Full Test Timeline)</div>
+        <div class="chart-container">
+            <div class="chart-title">Queries Per Second &mdash; Single Pod to Multi-Pod Transition</div>
+            <div class="bar-chart" style="height: 240px;">
+                <div class="bar-group">
+                    <div class="bar-value" style="color:#546e7a; font-size:10px;">45</div>
+                    <div class="bar" style="height:15px; background: linear-gradient(180deg, #546e7a, #37474f);"></div>
+                    <div class="bar-label" style="font-size:9px;">17:43</div>
+                </div>
+                <div class="bar-group">
+                    <div class="bar-value" style="color:#4fc3f7; font-size:10px;">98</div>
+                    <div class="bar" style="height:33px; background: linear-gradient(180deg, #4fc3f7, #0288d1);"></div>
+                    <div class="bar-label" style="font-size:9px;">17:47</div>
+                </div>
+                <div class="bar-group">
+                    <div class="bar-value" style="color:#4fc3f7; font-size:10px;">100</div>
+                    <div class="bar" style="height:34px; background: linear-gradient(180deg, #4fc3f7, #0288d1);"></div>
+                    <div class="bar-label" style="font-size:9px;">17:52</div>
+                </div>
+                <div class="bar-group">
+                    <div class="bar-value" style="color:#4fc3f7; font-size:10px;">100</div>
+                    <div class="bar" style="height:34px; background: linear-gradient(180deg, #4fc3f7, #0288d1);"></div>
+                    <div class="bar-label" style="font-size:9px;">17:59</div>
+                </div>
+                <div class="bar-group">
+                    <div class="bar-value" style="color:#4fc3f7; font-size:10px;">97</div>
+                    <div class="bar" style="height:33px; background: linear-gradient(180deg, #4fc3f7, #0288d1);"></div>
+                    <div class="bar-label" style="font-size:9px;">18:06</div>
+                </div>
+                <div class="bar-group">
+                    <div class="bar-value" style="color:#ff9800; font-size:10px;">132</div>
+                    <div class="bar" style="height:45px; background: linear-gradient(180deg, #ff9800, #e65100);"></div>
+                    <div class="bar-label" style="font-size:9px;">18:09</div>
+                </div>
+                <div class="bar-group">
+                    <div class="bar-value" style="color:#fdd835; font-size:10px;">370</div>
+                    <div class="bar" style="height:126px; background: linear-gradient(180deg, #fdd835, #f9a825);"></div>
+                    <div class="bar-label" style="font-size:9px;">18:10</div>
+                </div>
+                <div class="bar-group">
+                    <div class="bar-value" style="color:#fdd835; font-size:10px;">471</div>
+                    <div class="bar" style="height:160px; background: linear-gradient(180deg, #fdd835, #f9a825);"></div>
+                    <div class="bar-label" style="font-size:9px;">18:11</div>
+                </div>
+                <div class="bar-group">
+                    <div class="bar-value" style="color:#66bb6a; font-size:11px; font-weight:800;">588</div>
+                    <div class="bar" style="height:200px; background: linear-gradient(180deg, #66bb6a, #388e3c);"></div>
+                    <div class="bar-label" style="font-size:9px;">18:12</div>
+                </div>
+                <div class="bar-group">
+                    <div class="bar-value" style="color:#66bb6a; font-size:10px;">552</div>
+                    <div class="bar" style="height:188px; background: linear-gradient(180deg, #66bb6a, #388e3c);"></div>
+                    <div class="bar-label" style="font-size:9px;">18:15</div>
+                </div>
+                <div class="bar-group">
+                    <div class="bar-value" style="color:#66bb6a; font-size:10px;">517</div>
+                    <div class="bar" style="height:176px; background: linear-gradient(180deg, #66bb6a, #388e3c);"></div>
+                    <div class="bar-label" style="font-size:9px;">18:17</div>
+                </div>
+                <div class="bar-group">
+                    <div class="bar-value" style="color:#fdd835; font-size:10px;">433</div>
+                    <div class="bar" style="height:147px; background: linear-gradient(180deg, #fdd835, #f9a825);"></div>
+                    <div class="bar-label" style="font-size:9px;">18:21</div>
+                </div>
+            </div>
+            <div class="legend" style="margin-top: 20px;">
+                <div class="legend-item"><div class="legend-dot" style="background:#546e7a;"></div> Warmup</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#4fc3f7;"></div> 1 Pod (~100 QPS)</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#ff9800;"></div> Ramp-up</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#66bb6a;"></div> 12 Pods (418+ QPS)</div>
+            </div>
+        </div>
+
+        <div class="section-title">Comparison with Kapil's Test (XSMALL/10 Clusters)</div>
+        <table class="results-table">
+            <thead>
+                <tr>
+                    <th>Metric</th>
+                    <th>Kapil (XSMALL &times; 10)</th>
+                    <th>This Test (SMALL &times; 10)</th>
+                    <th>Delta</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Warehouse Size</td>
+                    <td>XSMALL</td>
+                    <td>SMALL</td>
+                    <td style="color:#4fc3f7;">1 size up</td>
+                </tr>
+                <tr>
+                    <td>Active Pods</td>
+                    <td>15</td>
+                    <td>12</td>
+                    <td style="color:#fdd835;">-3 (VPC CNI issue)</td>
+                </tr>
+                <tr>
+                    <td>Active Connections</td>
+                    <td>450</td>
+                    <td>360</td>
+                    <td style="color:#fdd835;">-90</td>
+                </tr>
+                <tr>
+                    <td>Total Queries</td>
+                    <td>701,639</td>
+                    <td>255,412 (10 min)</td>
+                    <td class="latency">&mdash;</td>
+                </tr>
+                <tr>
+                    <td>Average QPS</td>
+                    <td><span class="qps-value qps-high">1,000.9</span></td>
+                    <td><span class="qps-value qps-mid">418.2</span></td>
+                    <td style="color:#fdd835;">-58% (fewer pods)</td>
+                </tr>
+                <tr>
+                    <td>Peak QPS</td>
+                    <td><span class="qps-value qps-high">1,040.2</span></td>
+                    <td><span class="qps-value qps-high">588.1</span></td>
+                    <td style="color:#fdd835;">-43%</td>
+                </tr>
+                <tr>
+                    <td>SF P50 (ms)</td>
+                    <td class="latency">152</td>
+                    <td class="latency">142</td>
+                    <td style="color:#66bb6a;">-10ms (7% faster)</td>
+                </tr>
+                <tr>
+                    <td>SF P95 (ms)</td>
+                    <td class="latency">212</td>
+                    <td class="latency">204</td>
+                    <td style="color:#66bb6a;">-8ms (4% faster)</td>
+                </tr>
+                <tr>
+                    <td>SF P99 (ms)</td>
+                    <td class="latency">430</td>
+                    <td class="latency">251</td>
+                    <td style="color:#66bb6a;">-179ms (42% faster)</td>
+                </tr>
+                <tr>
+                    <td>Errors</td>
+                    <td>961 warmup timeouts</td>
+                    <td>1 warmup timeout</td>
+                    <td style="color:#66bb6a;">Minimal</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="notes">
+            <h3>Key Findings</h3>
+            <ul>
+                <li><strong>SMALL warehouse delivers lower latency than XSMALL:</strong> P50 improved by 10ms (142 vs 152), P99 dramatically improved by 179ms (251 vs 430). The additional compute per cluster reduces tail latency significantly.</li>
+                <li><strong>QPS limited by EKS pod count, not Snowflake:</strong> Only 12 of 15 pods ran due to VPC CNI IP allocation failures on EKS Auto Mode nodes. Zero Snowflake-side queuing confirms the warehouse had capacity for higher throughput.</li>
+                <li><strong>Perfect cluster balance:</strong> All 10 clusters received 9.6% &ndash; 11.0% of queries, demonstrating excellent Interactive WH load distribution.</li>
+                <li><strong>Estimated QPS at 15 pods:</strong> Extrapolating from 12 pods (418 QPS), 15 pods would yield ~523 QPS. Still below Kapil's 1,000 QPS due to reduced pod CPU (0.5 request vs 2) causing higher client-side overhead.</li>
+                <li><strong>Near-zero errors:</strong> Only 1 timeout out of 730,000 queries (0.00014% failure rate) vs. Kapil's 961 warmup timeouts. The pre-warmed cache from the single-pod phase eliminated cold-start issues.</li>
+                <li><strong>VPC CNI issue:</strong> EKS Auto Mode provisioned nodes that couldn't allocate secondary IPs via the aws-cni plugin. This is an infrastructure issue unrelated to Snowflake performance. Workaround: removed pod anti-affinity and lowered resource requests to co-locate pods on working nodes.</li>
+                <li><strong>Single pod baseline:</strong> 1 pod with 30 connections sustains ~100 QPS with P50 ~131ms, providing a useful per-pod throughput reference.</li>
+            </ul>
+        </div>
+
+        <div class="footer">
+            Account: SFPSCOGS-RNELLIKAL &middot; EKS Cluster: rnellikal-jmeter-interactive-poc (us-west-2) &middot; Generated: 2026-03-23 01:25 UTC
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Snowflake Performance Test Report - SMALL/8 Clusters</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0f1923; color: #e0e6ed; }
+        .header { background: linear-gradient(135deg, #1a73e8, #0d47a1); padding: 40px; text-align: center; }
+        .header h1 { font-size: 28px; font-weight: 700; color: #fff; margin-bottom: 8px; }
+        .header p { font-size: 14px; color: #b3d4fc; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 30px 20px; }
+        .time-banner { display: flex; justify-content: center; gap: 60px; background: #162230; border: 1px solid #1a73e8; border-radius: 10px; padding: 20px 40px; margin-bottom: 30px; flex-wrap: wrap; }
+        .time-item { text-align: center; }
+        .time-item .label { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: #7eb8f7; margin-bottom: 6px; }
+        .time-item .value { font-size: 18px; font-weight: 600; color: #fff; font-family: 'Courier New', monospace; }
+        .config-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 14px; margin-bottom: 30px; }
+        .config-card { background: #162230; border-radius: 10px; padding: 16px; text-align: center; border: 1px solid #1e3a52; }
+        .config-card .label { font-size: 10px; text-transform: uppercase; letter-spacing: 1.2px; color: #6b8dad; margin-bottom: 6px; }
+        .config-card .value { font-size: 20px; font-weight: 700; color: #4fc3f7; }
+        .config-card .value.highlight { color: #66bb6a; }
+        .config-card .sub { font-size: 10px; color: #546e7a; margin-top: 4px; }
+        .section-title { font-size: 20px; font-weight: 600; color: #fff; margin: 30px 0 16px 0; padding-bottom: 8px; border-bottom: 2px solid #1a73e8; }
+        .results-table { width: 100%; border-collapse: separate; border-spacing: 0; background: #162230; border-radius: 10px; overflow: hidden; margin-bottom: 30px; }
+        .results-table thead th { background: #1a3a5c; padding: 12px 10px; text-align: center; font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: #7eb8f7; font-weight: 600; }
+        .results-table tbody td { padding: 12px 10px; text-align: center; border-top: 1px solid #1e3a52; font-size: 14px; }
+        .results-table tbody tr:hover { background: #1a3050; }
+        .qps-value { font-weight: 700; font-size: 17px; }
+        .qps-high { color: #66bb6a; }
+        .qps-mid { color: #fdd835; }
+        .qps-low { color: #ef5350; }
+        .latency { color: #b0bec5; font-family: 'Courier New', monospace; }
+        .e2e { color: #ce93d8; font-family: 'Courier New', monospace; }
+        .s3-ok { color: #66bb6a; }
+        .s3-warn { color: #fdd835; }
+        .peak-banner { background: linear-gradient(135deg, #1b5e20, #2e7d32); border-radius: 10px; padding: 30px; text-align: center; margin-bottom: 30px; }
+        .peak-banner .peak-label { font-size: 13px; text-transform: uppercase; letter-spacing: 2px; color: #a5d6a7; margin-bottom: 8px; }
+        .peak-banner .peak-value { font-size: 52px; font-weight: 800; color: #fff; }
+        .peak-banner .peak-unit { font-size: 18px; color: #a5d6a7; margin-left: 4px; }
+        .peak-banner .peak-detail { font-size: 13px; color: #c8e6c9; margin-top: 8px; }
+        .chart-container { background: #162230; border-radius: 10px; padding: 30px; margin-bottom: 30px; border: 1px solid #1e3a52; }
+        .chart-title { font-size: 14px; font-weight: 600; color: #7eb8f7; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 1px; }
+        .bar-chart { display: flex; align-items: flex-end; justify-content: space-around; height: 220px; padding: 0 20px; }
+        .bar-group { display: flex; flex-direction: column; align-items: center; flex: 1; }
+        .bar { width: 60px; border-radius: 6px 6px 0 0; transition: all 0.3s; min-height: 4px; }
+        .bar:hover { opacity: 0.85; }
+        .bar-label { margin-top: 10px; font-size: 12px; color: #6b8dad; }
+        .bar-value { font-size: 13px; font-weight: 700; }
+        .latency-chart { display: flex; justify-content: space-around; margin-top: 20px; }
+        .latency-group { text-align: center; flex: 1; }
+        .latency-bars { display: flex; align-items: flex-end; justify-content: center; gap: 4px; height: 140px; margin-bottom: 8px; }
+        .lat-bar { width: 18px; border-radius: 3px 3px 0 0; }
+        .lat-bar.p50 { background: #4fc3f7; }
+        .lat-bar.p95 { background: #ff9800; }
+        .lat-bar.p99 { background: #ef5350; }
+        .legend { display: flex; justify-content: center; gap: 30px; margin-top: 16px; }
+        .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #6b8dad; }
+        .legend-dot { width: 12px; height: 12px; border-radius: 3px; }
+        .query-box { background: #0d1820; border: 1px solid #1e3a52; border-radius: 10px; padding: 20px; margin-bottom: 30px; overflow-x: auto; }
+        .query-box pre { font-family: 'Courier New', monospace; font-size: 12px; color: #81d4fa; line-height: 1.6; white-space: pre-wrap; }
+        .query-box .keyword { color: #ff9800; font-weight: 600; }
+        .query-box .table-name { color: #66bb6a; }
+        .query-box .func { color: #ce93d8; }
+        .notes { background: #162230; border-radius: 10px; padding: 24px; border-left: 4px solid #1a73e8; }
+        .notes h3 { font-size: 14px; color: #7eb8f7; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px; }
+        .notes ul { list-style: none; }
+        .notes li { padding: 5px 0; font-size: 13px; color: #90a4ae; }
+        .notes li::before { content: "\2192 "; color: #1a73e8; font-weight: bold; }
+        .footer { text-align: center; padding: 20px; font-size: 11px; color: #455a64; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Snowflake Interactive Warehouse Performance Test</h1>
+        <p>NEW_INT_WH &middot; SMALL &middot; 8 Clusters &middot; 15 Pods &middot; 30 Pool / 80 Threads</p>
+    </div>
+
+    <div class="container">
+        <div class="time-banner">
+            <div class="time-item">
+                <div class="label">Test Start (UTC)</div>
+                <div class="value">2026-03-19 21:02:01</div>
+            </div>
+            <div class="time-item">
+                <div class="label">Test End (UTC)</div>
+                <div class="value">2026-03-19 21:15:35</div>
+            </div>
+            <div class="time-item">
+                <div class="label">Duration</div>
+                <div class="value">~10 min</div>
+            </div>
+        </div>
+
+        <div class="section-title">Test Configuration</div>
+        <div class="config-grid">
+            <div class="config-card">
+                <div class="label">Warehouse</div>
+                <div class="value">NEW_INT_WH</div>
+            </div>
+            <div class="config-card">
+                <div class="label">WH Size</div>
+                <div class="value">SMALL</div>
+            </div>
+            <div class="config-card">
+                <div class="label">Clusters</div>
+                <div class="value">8</div>
+            </div>
+            <div class="config-card">
+                <div class="label">Pods</div>
+                <div class="value highlight">15</div>
+            </div>
+            <div class="config-card">
+                <div class="label">Threads/Pod</div>
+                <div class="value">80</div>
+                <div class="sub">1,200 total threads</div>
+            </div>
+            <div class="config-card">
+                <div class="label">Pool/Pod</div>
+                <div class="value">30</div>
+                <div class="sub">450 total connections</div>
+            </div>
+            <div class="config-card">
+                <div class="label">Pod CPU</div>
+                <div class="value" style="font-size:16px;">2 / 4</div>
+                <div class="sub">request / limit</div>
+            </div>
+            <div class="config-card">
+                <div class="label">Pod Memory</div>
+                <div class="value" style="font-size:16px;">3Gi / 4Gi</div>
+                <div class="sub">request / limit</div>
+            </div>
+            <div class="config-card">
+                <div class="label">JDBC Driver</div>
+                <div class="value" style="font-size:16px;">3.20.0</div>
+                <div class="sub">Arrow format</div>
+            </div>
+        </div>
+
+        <div class="peak-banner">
+            <div class="peak-label">Peak QPS (5-second sample)</div>
+            <div class="peak-value">897.7<span class="peak-unit">QPS</span></div>
+            <div class="peak-detail">Achieved at 2-minute checkpoint with zero S3 throttling</div>
+        </div>
+
+        <div class="section-title">Snowflake-Side Latency (QUERY_HISTORY)</div>
+        <table class="results-table">
+            <thead>
+                <tr>
+                    <th>Checkpoint</th>
+                    <th>QPS</th>
+                    <th>Avg (ms)</th>
+                    <th>P50 (ms)</th>
+                    <th>P95 (ms)</th>
+                    <th>P99 (ms)</th>
+                    <th>S3 SlowDown</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>2 min</td>
+                    <td><span class="qps-value qps-high">897.7</span></td>
+                    <td class="latency">227</td>
+                    <td class="latency">220</td>
+                    <td class="latency">333</td>
+                    <td class="latency">424</td>
+                    <td><span class="s3-ok">0</span></td>
+                </tr>
+                <tr>
+                    <td>5 min</td>
+                    <td><span class="qps-value qps-mid">846.0</span></td>
+                    <td class="latency">225</td>
+                    <td class="latency">218</td>
+                    <td class="latency">333</td>
+                    <td class="latency">447</td>
+                    <td><span class="s3-warn">2</span></td>
+                </tr>
+                <tr>
+                    <td>8 min</td>
+                    <td><span class="qps-value qps-mid">849.0</span></td>
+                    <td class="latency">210</td>
+                    <td class="latency">205</td>
+                    <td class="latency">306</td>
+                    <td class="latency">467</td>
+                    <td><span class="s3-warn">3</span></td>
+                </tr>
+                <tr>
+                    <td>10 min</td>
+                    <td><span class="qps-value qps-low">772.6</span></td>
+                    <td class="latency">237</td>
+                    <td class="latency">219</td>
+                    <td class="latency">390</td>
+                    <td class="latency">673</td>
+                    <td><span class="s3-warn">7</span></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="section-title">Estimated End-to-End JMeter Latency</div>
+        <p style="font-size:12px; color:#546e7a; margin-bottom:14px;">Estimated from QPS, connection count (450), and 50ms think time. E2E = Snowflake exec + S3 download + JDBC/network overhead.</p>
+        <table class="results-table">
+            <thead>
+                <tr>
+                    <th>Checkpoint</th>
+                    <th>Avg E2E (ms)</th>
+                    <th>Est. P50 (ms)</th>
+                    <th>Est. P95 (ms)</th>
+                    <th>Est. P99 (ms)</th>
+                    <th>Overhead (ms)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>2 min</td>
+                    <td class="e2e">451</td>
+                    <td class="e2e">444</td>
+                    <td class="e2e">557</td>
+                    <td class="e2e">648</td>
+                    <td class="latency">~224</td>
+                </tr>
+                <tr>
+                    <td>5 min</td>
+                    <td class="e2e">482</td>
+                    <td class="e2e">475</td>
+                    <td class="e2e">590</td>
+                    <td class="e2e">704</td>
+                    <td class="latency">~257</td>
+                </tr>
+                <tr>
+                    <td>8 min</td>
+                    <td class="e2e">480</td>
+                    <td class="e2e">475</td>
+                    <td class="e2e">576</td>
+                    <td class="e2e">737</td>
+                    <td class="latency">~270</td>
+                </tr>
+                <tr>
+                    <td>10 min</td>
+                    <td class="e2e">532</td>
+                    <td class="e2e">514</td>
+                    <td class="e2e">685</td>
+                    <td class="e2e">968</td>
+                    <td class="latency">~295</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="section-title">QPS Over Time</div>
+        <div class="chart-container">
+            <div class="chart-title">Queries Per Second at Each Checkpoint</div>
+            <div class="bar-chart">
+                <div class="bar-group">
+                    <div class="bar-value" style="color:#66bb6a;">897.7</div>
+                    <div class="bar" style="height:200px; background: linear-gradient(180deg, #66bb6a, #388e3c);"></div>
+                    <div class="bar-label">2 min</div>
+                </div>
+                <div class="bar-group">
+                    <div class="bar-value" style="color:#fdd835;">846.0</div>
+                    <div class="bar" style="height:188px; background: linear-gradient(180deg, #fdd835, #f9a825);"></div>
+                    <div class="bar-label">5 min</div>
+                </div>
+                <div class="bar-group">
+                    <div class="bar-value" style="color:#fdd835;">849.0</div>
+                    <div class="bar" style="height:189px; background: linear-gradient(180deg, #fdd835, #f9a825);"></div>
+                    <div class="bar-label">8 min</div>
+                </div>
+                <div class="bar-group">
+                    <div class="bar-value" style="color:#ef5350;">772.6</div>
+                    <div class="bar" style="height:172px; background: linear-gradient(180deg, #ef5350, #c62828);"></div>
+                    <div class="bar-label">10 min</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section-title">Latency Distribution (Snowflake-Side)</div>
+        <div class="chart-container">
+            <div class="chart-title">P50 / P95 / P99 Latency (ms) at Each Checkpoint</div>
+            <div class="latency-chart">
+                <div class="latency-group">
+                    <div class="latency-bars">
+                        <div class="lat-bar p50" style="height: calc(220 / 700 * 130px);" title="P50: 220ms"></div>
+                        <div class="lat-bar p95" style="height: calc(333 / 700 * 130px);" title="P95: 333ms"></div>
+                        <div class="lat-bar p99" style="height: calc(424 / 700 * 130px);" title="P99: 424ms"></div>
+                    </div>
+                    <div style="font-size:11px; color:#6b8dad;">2 min</div>
+                    <div style="font-size:10px; color:#4fc3f7; margin-top:2px;">220 / 333 / 424</div>
+                </div>
+                <div class="latency-group">
+                    <div class="latency-bars">
+                        <div class="lat-bar p50" style="height: calc(218 / 700 * 130px);" title="P50: 218ms"></div>
+                        <div class="lat-bar p95" style="height: calc(333 / 700 * 130px);" title="P95: 333ms"></div>
+                        <div class="lat-bar p99" style="height: calc(447 / 700 * 130px);" title="P99: 447ms"></div>
+                    </div>
+                    <div style="font-size:11px; color:#6b8dad;">5 min</div>
+                    <div style="font-size:10px; color:#4fc3f7; margin-top:2px;">218 / 333 / 447</div>
+                </div>
+                <div class="latency-group">
+                    <div class="latency-bars">
+                        <div class="lat-bar p50" style="height: calc(205 / 700 * 130px);" title="P50: 205ms"></div>
+                        <div class="lat-bar p95" style="height: calc(306 / 700 * 130px);" title="P95: 306ms"></div>
+                        <div class="lat-bar p99" style="height: calc(467 / 700 * 130px);" title="P99: 467ms"></div>
+                    </div>
+                    <div style="font-size:11px; color:#6b8dad;">8 min</div>
+                    <div style="font-size:10px; color:#4fc3f7; margin-top:2px;">205 / 306 / 467</div>
+                </div>
+                <div class="latency-group">
+                    <div class="latency-bars">
+                        <div class="lat-bar p50" style="height: calc(219 / 700 * 130px);" title="P50: 219ms"></div>
+                        <div class="lat-bar p95" style="height: calc(390 / 700 * 130px);" title="P95: 390ms"></div>
+                        <div class="lat-bar p99" style="height: calc(673 / 700 * 130px);" title="P99: 673ms"></div>
+                    </div>
+                    <div style="font-size:11px; color:#6b8dad;">10 min</div>
+                    <div style="font-size:10px; color:#4fc3f7; margin-top:2px;">219 / 390 / 673</div>
+                </div>
+            </div>
+            <div class="legend">
+                <div class="legend-item"><div class="legend-dot" style="background:#4fc3f7;"></div> P50</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#ff9800;"></div> P95</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#ef5350;"></div> P99</div>
+            </div>
+        </div>
+
+        <div class="section-title">Test Query</div>
+        <div class="query-box">
+            <pre><span class="keyword">SELECT</span>
+    CR.CR_ORDER_NUMBER <span class="keyword">AS</span> ORDER_KEY,
+    CR.CR_REFUNDED_CUSTOMER_SK <span class="keyword">AS</span> CUST_KEY,
+    <span class="func">COUNT</span>(<span class="keyword">DISTINCT</span> CR.CR_REFUNDED_CUSTOMER_SK) <span class="func">OVER</span> (<span class="keyword">PARTITION BY</span> CR.CR_ORDER_NUMBER) <span class="keyword">AS</span> ORDER_CUST_COUNT,
+    <span class="func">SUM</span>(<span class="func">COALESCE</span>(CR.CR_RETURN_AMOUNT, 0)) <span class="keyword">AS</span> TOTAL_RETURN_AMOUNT,
+    <span class="func">MAX</span>(CR.CR_REASON_SK) <span class="keyword">AS</span> MAX_REASON,
+    <span class="func">MAX</span>(CR.CR_CALL_CENTER_SK) <span class="keyword">AS</span> MAX_CALL_CENTER,
+    <span class="func">MIN</span>(CR.CR_RETURNED_DATE_SK) <span class="keyword">AS</span> MIN_RETURN_DATE_SK,
+    <span class="func">MAX</span>(CR.CR_RETURNED_DATE_SK) <span class="keyword">AS</span> MAX_RETURN_DATE_SK
+<span class="keyword">FROM</span> <span class="table-name">DEMO.DEMO.ORDERS_INTERACTIVE</span> <span class="keyword">AS</span> CR
+<span class="keyword">WHERE</span> CR.CR_RETURNED_DATE_SK <span class="keyword">BETWEEN</span> 2452912 <span class="keyword">AND</span> 2452924
+  <span class="keyword">AND</span> CR.CR_WAREHOUSE_SK <span class="keyword">IS NOT NULL</span>
+<span class="keyword">GROUP BY</span> CR.CR_ORDER_NUMBER, CR.CR_REFUNDED_CUSTOMER_SK</pre>
+            <div style="margin-top:12px; font-size:11px; color:#546e7a;">
+                Table: ORDERS_INTERACTIVE (75.97 GB, 1.44B rows) &middot; Result: ~12,381 rows, ~315 KB &middot; Scan: ~14.73 MB/query
+            </div>
+        </div>
+
+        <div class="notes">
+            <h3>Observations</h3>
+            <ul>
+                <li>Peak QPS of 897.7 achieved at the 2-minute mark with zero S3 throttling</li>
+                <li>QPS gradually declined from 898 to 773 over 10 minutes as S3 SlowDown events accumulated (0 to 7)</li>
+                <li>Snowflake P50 latency remained stable at 205-220ms throughout the test</li>
+                <li>Estimated JMeter E2E avg latency: 451-532ms (Snowflake exec + S3 download + JDBC/network overhead)</li>
+                <li>P99 tail latency grew from 424ms to 673ms SF-side (~648ms to ~968ms E2E), indicating S3 throttling impact</li>
+                <li>Pool/Thread decoupling (30 pool / 80 threads) kept S3 throttling minimal vs earlier 40/40 config</li>
+                <li>Table: ORDERS_INTERACTIVE (75.97 GB, 1.44B rows), Result size: ~315 KB per query</li>
+            </ul>
+        </div>
+
+        <div class="footer">
+            Generated: 2026-03-19 &middot; Snowflake Account: SFPSCOGS-KAPILARORA_AWS_POLARIS_UNISTORE &middot; EKS Cluster: interactive-poc (ap-northeast-3)
+        </div>
+    </div>
+</body>
+</html>

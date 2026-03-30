@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Snowflake Performance Test Report - SMALL/10 Clusters/6 Pods/Kafka</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0f1923; color: #e0e6ed; }
+        .header { background: linear-gradient(135deg, #1a73e8, #0d47a1); padding: 40px; text-align: center; }
+        .header h1 { font-size: 28px; font-weight: 700; color: #fff; margin-bottom: 8px; }
+        .header p { font-size: 14px; color: #b3d4fc; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 30px 20px; }
+        .time-banner { display: flex; justify-content: center; gap: 60px; background: #162230; border: 1px solid #1a73e8; border-radius: 10px; padding: 20px 40px; margin-bottom: 30px; flex-wrap: wrap; }
+        .time-item { text-align: center; }
+        .time-item .label { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: #7eb8f7; margin-bottom: 6px; }
+        .time-item .value { font-size: 18px; font-weight: 600; color: #fff; font-family: 'Courier New', monospace; }
+        .config-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 14px; margin-bottom: 30px; }
+        .config-card { background: #162230; border-radius: 10px; padding: 16px; text-align: center; border: 1px solid #1e3a52; }
+        .config-card .label { font-size: 10px; text-transform: uppercase; letter-spacing: 1.2px; color: #6b8dad; margin-bottom: 6px; }
+        .config-card .value { font-size: 20px; font-weight: 700; color: #4fc3f7; }
+        .config-card .value.highlight { color: #66bb6a; }
+        .config-card .sub { font-size: 10px; color: #546e7a; margin-top: 4px; }
+        .section-title { font-size: 20px; font-weight: 600; color: #fff; margin: 30px 0 16px 0; padding-bottom: 8px; border-bottom: 2px solid #1a73e8; }
+        .results-table { width: 100%; border-collapse: separate; border-spacing: 0; background: #162230; border-radius: 10px; overflow: hidden; margin-bottom: 30px; }
+        .results-table thead th { background: #1a3a5c; padding: 12px 10px; text-align: center; font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: #7eb8f7; font-weight: 600; }
+        .results-table tbody td { padding: 12px 10px; text-align: center; border-top: 1px solid #1e3a52; font-size: 14px; }
+        .results-table tbody tr:hover { background: #1a3050; }
+        .qps-value { font-weight: 700; font-size: 17px; }
+        .qps-high { color: #66bb6a; }
+        .qps-mid { color: #fdd835; }
+        .latency { color: #b0bec5; font-family: 'Courier New', monospace; }
+        .e2e { color: #ce93d8; font-family: 'Courier New', monospace; }
+        .s3-ok { color: #66bb6a; }
+        .s3-warn { color: #fdd835; }
+        .peak-banner { background: linear-gradient(135deg, #1b5e20, #2e7d32); border-radius: 10px; padding: 30px; text-align: center; margin-bottom: 30px; }
+        .peak-banner .peak-label { font-size: 13px; text-transform: uppercase; letter-spacing: 2px; color: #a5d6a7; margin-bottom: 8px; }
+        .peak-banner .peak-value { font-size: 52px; font-weight: 800; color: #fff; }
+        .peak-banner .peak-unit { font-size: 18px; color: #a5d6a7; margin-left: 4px; }
+        .peak-banner .peak-detail { font-size: 13px; color: #c8e6c9; margin-top: 8px; }
+        .chart-container { background: #162230; border-radius: 10px; padding: 30px; margin-bottom: 30px; border: 1px solid #1e3a52; }
+        .chart-title { font-size: 14px; font-weight: 600; color: #7eb8f7; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 1px; }
+        .bar-chart { display: flex; align-items: flex-end; justify-content: space-around; height: 220px; padding: 0 10px; }
+        .bar-group { display: flex; flex-direction: column; align-items: center; flex: 1; }
+        .bar { width: 50px; border-radius: 6px 6px 0 0; transition: all 0.3s; min-height: 4px; }
+        .bar:hover { opacity: 0.85; }
+        .bar-label { margin-top: 10px; font-size: 11px; color: #6b8dad; }
+        .bar-value { font-size: 12px; font-weight: 700; }
+        .latency-chart { display: flex; justify-content: space-around; margin-top: 20px; }
+        .latency-group { text-align: center; flex: 1; }
+        .latency-bars { display: flex; align-items: flex-end; justify-content: center; gap: 4px; height: 140px; margin-bottom: 8px; }
+        .lat-bar { width: 18px; border-radius: 3px 3px 0 0; }
+        .lat-bar.p50 { background: #4fc3f7; }
+        .lat-bar.p95 { background: #ff9800; }
+        .lat-bar.p99 { background: #ef5350; }
+        .legend { display: flex; justify-content: center; gap: 30px; margin-top: 16px; }
+        .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #6b8dad; }
+        .legend-dot { width: 12px; height: 12px; border-radius: 3px; }
+        .query-box { background: #0d1820; border: 1px solid #1e3a52; border-radius: 10px; padding: 20px; margin-bottom: 30px; overflow-x: auto; }
+        .query-box pre { font-family: 'Courier New', monospace; font-size: 12px; color: #81d4fa; line-height: 1.6; white-space: pre-wrap; }
+        .query-box .keyword { color: #ff9800; font-weight: 600; }
+        .query-box .table-name { color: #66bb6a; }
+        .query-box .func { color: #ce93d8; }
+        .notes { background: #162230; border-radius: 10px; padding: 24px; border-left: 4px solid #1a73e8; }
+        .notes h3 { font-size: 14px; color: #7eb8f7; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px; }
+        .notes ul { list-style: none; }
+        .notes li { padding: 5px 0; font-size: 13px; color: #90a4ae; }
+        .notes li::before { content: "\2192 "; color: #1a73e8; font-weight: bold; }
+        .footer { text-align: center; padding: 20px; font-size: 11px; color: #455a64; margin-top: 20px; }
+        .dual-table { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; }
+        @media (max-width: 900px) { .dual-table { grid-template-columns: 1fr; } }
+        .table-label { font-size: 13px; font-weight: 600; color: #7eb8f7; margin-bottom: 10px; text-align: center; text-transform: uppercase; letter-spacing: 1px; }
+        .kafka-box { background: linear-gradient(135deg, #1a237e, #283593); border-radius: 10px; padding: 24px; margin-bottom: 30px; border: 1px solid #3949ab; }
+        .kafka-box .kafka-title { font-size: 14px; font-weight: 600; color: #90caf9; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 1px; }
+        .kafka-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; }
+        .kafka-item { text-align: center; }
+        .kafka-item .k-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1.2px; color: #7986cb; margin-bottom: 4px; }
+        .kafka-item .k-value { font-size: 18px; font-weight: 700; color: #e8eaf6; }
+        .kafka-item .k-sub { font-size: 10px; color: #5c6bc0; margin-top: 2px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Snowflake Interactive Warehouse Performance Test</h1>
+        <p>TPCH_INTERACTIVE_WH &middot; SMALL &middot; 10 Clusters &middot; 6 Pods &middot; 30 Pool / 80 Threads &middot; Concurrent Kafka Streaming</p>
+    </div>
+
+    <div class="container">
+        <div class="time-banner">
+            <div class="time-item">
+                <div class="label">Test Start (UTC)</div>
+                <div class="value">2026-03-28 16:37:20</div>
+            </div>
+            <div class="time-item">
+                <div class="label">Test End (UTC)</div>
+                <div class="value">2026-03-28 16:47:21</div>
+            </div>
+            <div class="time-item">
+                <div class="label">Duration</div>
+                <div class="value">~10 min</div>
+            </div>
+        </div>
+
+        <div class="section-title">Test Configuration</div>
+        <div class="config-grid">
+            <div class="config-card">
+                <div class="label">Warehouse</div>
+                <div class="value" style="font-size:14px;">TPCH_INTERACTIVE_WH</div>
+            </div>
+            <div class="config-card">
+                <div class="label">WH Size</div>
+                <div class="value">SMALL</div>
+            </div>
+            <div class="config-card">
+                <div class="label">Clusters</div>
+                <div class="value highlight">10</div>
+            </div>
+            <div class="config-card">
+                <div class="label">Pods</div>
+                <div class="value highlight">6</div>
+            </div>
+            <div class="config-card">
+                <div class="label">Threads/Pod</div>
+                <div class="value">80</div>
+                <div class="sub">480 total threads</div>
+            </div>
+            <div class="config-card">
+                <div class="label">Pool/Pod</div>
+                <div class="value">30</div>
+                <div class="sub">180 total connections</div>
+            </div>
+            <div class="config-card">
+                <div class="label">Pod CPU</div>
+                <div class="value" style="font-size:16px;">2 / 4</div>
+                <div class="sub">request / limit</div>
+            </div>
+            <div class="config-card">
+                <div class="label">Pod Memory</div>
+                <div class="value" style="font-size:16px;">3Gi / 4Gi</div>
+                <div class="sub">request / limit</div>
+            </div>
+            <div class="config-card">
+                <div class="label">JDBC Driver</div>
+                <div class="value" style="font-size:16px;">3.20.0</div>
+                <div class="sub">Arrow format</div>
+            </div>
+            <div class="config-card">
+                <div class="label">Table</div>
+                <div class="value" style="font-size:14px;">ORDERS_INTERACTIVE</div>
+                <div class="sub">INTERACTIVE_DEMO.TPCH_INTERACTIVE</div>
+            </div>
+            <div class="config-card">
+                <div class="label">Table Size</div>
+                <div class="value" style="font-size:18px;">~76+ GB</div>
+                <div class="sub">1.44B+ rows + ~49M streamed</div>
+            </div>
+            <div class="config-card">
+                <div class="label">Data Scanned</div>
+                <div class="value" style="font-size:18px;">14.73 MB</div>
+                <div class="sub">per query</div>
+            </div>
+            <div class="config-card">
+                <div class="label">Result Size</div>
+                <div class="value" style="font-size:18px;">315 KB</div>
+                <div class="sub">~12,381 rows</div>
+            </div>
+            <div class="config-card">
+                <div class="label">Kafka Ingestion</div>
+                <div class="value" style="font-size:16px;">~23.5 MB/s</div>
+                <div class="sub">Snowpipe Streaming v2</div>
+            </div>
+        </div>
+
+        <div class="peak-banner">
+            <div class="peak-label">Average QPS (JMeter Client-Side &middot; 206,086 queries in 601 seconds)</div>
+            <div class="peak-value">342.8<span class="peak-unit">QPS</span></div>
+            <div class="peak-detail">206,086 success / 0 failures / Zero errors &middot; Lower QPS vs prior tests due to 6 pods (vs 15) + concurrent Kafka streaming write load</div>
+        </div>
+
+        <div class="section-title">Snowflake-Side Latency (INFORMATION_SCHEMA &mdash; 10K Sample)</div>
+        <p style="font-size:12px; color:#546e7a; margin-bottom:14px;">10,000 queries sampled (of ~206K total). Server-side execution time only.</p>
+        <table class="results-table">
+            <thead>
+                <tr>
+                    <th>Checkpoint</th>
+                    <th>QPS</th>
+                    <th>Avg (ms)</th>
+                    <th>P50 (ms)</th>
+                    <th>P95 (ms)</th>
+                    <th>P99 (ms)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Overall</td>
+                    <td><span class="qps-value qps-mid">342.8</span></td>
+                    <td class="latency">176.0</td>
+                    <td class="latency">168</td>
+                    <td class="latency">259</td>
+                    <td class="latency">311</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="section-title">Actual End-to-End JMeter Latency (from .jtl)</div>
+        <p style="font-size:12px; color:#546e7a; margin-bottom:14px;">Real measured latency from JMeter .jtl files. E2E = Snowflake exec + S3 result download + JDBC/network overhead. Total: 206,086 requests, 0 errors (0.00%). Overall Avg: 1,347.2ms, P50: 1,066ms, P90: 2,073ms, P95: 2,849ms, P99: 5,665ms.</p>
+        <table class="results-table">
+            <thead>
+                <tr>
+                    <th>Minute</th>
+                    <th>Requests</th>
+                    <th>QPS</th>
+                    <th>Avg (ms)</th>
+                    <th>P50 (ms)</th>
+                    <th>P95 (ms)</th>
+                    <th>P99 (ms)</th>
+                    <th>Overhead (ms)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>1</td>
+                    <td>6,399</td>
+                    <td><span class="qps-value qps-mid">106.7</span></td>
+                    <td class="e2e">4,640</td>
+                    <td class="e2e">3,380</td>
+                    <td class="e2e">13,023</td>
+                    <td class="e2e">15,968</td>
+                    <td class="latency">4,464</td>
+                </tr>
+                <tr>
+                    <td>2</td>
+                    <td>10,929</td>
+                    <td><span class="qps-value qps-mid">182.2</span></td>
+                    <td class="e2e">2,522</td>
+                    <td class="e2e">1,977</td>
+                    <td class="e2e">5,462</td>
+                    <td class="e2e">9,940</td>
+                    <td class="latency">2,346</td>
+                </tr>
+                <tr>
+                    <td>3</td>
+                    <td>14,360</td>
+                    <td><span class="qps-value qps-mid">239.3</span></td>
+                    <td class="e2e">1,917</td>
+                    <td class="e2e">1,345</td>
+                    <td class="e2e">4,135</td>
+                    <td class="e2e">7,396</td>
+                    <td class="latency">1,741</td>
+                </tr>
+                <tr>
+                    <td>4</td>
+                    <td>20,767</td>
+                    <td><span class="qps-value qps-mid">346.1</span></td>
+                    <td class="e2e">1,335</td>
+                    <td class="e2e">1,204</td>
+                    <td class="e2e">2,278</td>
+                    <td class="e2e">3,415</td>
+                    <td class="latency">1,159</td>
+                </tr>
+                <tr>
+                    <td>5</td>
+                    <td>21,378</td>
+                    <td><span class="qps-value qps-mid">356.3</span></td>
+                    <td class="e2e">1,303</td>
+                    <td class="e2e">1,172</td>
+                    <td class="e2e">2,259</td>
+                    <td class="e2e">3,444</td>
+                    <td class="latency">1,127</td>
+                </tr>
+                <tr>
+                    <td>6</td>
+                    <td>21,799</td>
+                    <td><span class="qps-value qps-mid">363.3</span></td>
+                    <td class="e2e">1,263</td>
+                    <td class="e2e">1,149</td>
+                    <td class="e2e">2,214</td>
+                    <td class="e2e">3,255</td>
+                    <td class="latency">1,087</td>
+                </tr>
+                <tr>
+                    <td>7</td>
+                    <td>27,126</td>
+                    <td><span class="qps-value qps-high">452.1</span></td>
+                    <td class="e2e">1,012</td>
+                    <td class="e2e">1,000</td>
+                    <td class="e2e">1,200</td>
+                    <td class="e2e">1,338</td>
+                    <td class="latency">836</td>
+                </tr>
+                <tr>
+                    <td>8</td>
+                    <td>27,390</td>
+                    <td><span class="qps-value qps-high">456.5</span></td>
+                    <td class="e2e">1,002</td>
+                    <td class="e2e">987</td>
+                    <td class="e2e">1,190</td>
+                    <td class="e2e">1,355</td>
+                    <td class="latency">826</td>
+                </tr>
+                <tr>
+                    <td>9</td>
+                    <td>28,331</td>
+                    <td><span class="qps-value qps-high">472.2</span></td>
+                    <td class="e2e">968</td>
+                    <td class="e2e">953</td>
+                    <td class="e2e">1,150</td>
+                    <td class="e2e">1,336</td>
+                    <td class="latency">792</td>
+                </tr>
+                <tr>
+                    <td>10</td>
+                    <td>27,491</td>
+                    <td><span class="qps-value qps-high">458.2</span></td>
+                    <td class="e2e">996</td>
+                    <td class="e2e">975</td>
+                    <td class="e2e">1,211</td>
+                    <td class="e2e">1,547</td>
+                    <td class="latency">820</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="section-title">QPS Over Time</div>
+        <div class="chart-container">
+            <div class="chart-title">Queries Per Second Per Minute (JMeter Client-Side)</div>
+            <div class="bar-chart">
+                <div class="bar-group">
+                    <div class="bar-value" style="color:#fdd835;">106.7</div>
+                    <div class="bar" style="height:45px; background: linear-gradient(180deg, #fdd835, #f9a825);"></div>
+                    <div class="bar-label">Min 1</div>
+                </div>
+                <div class="bar-group">
+                    <div class="bar-value" style="color:#fdd835;">182.2</div>
+                    <div class="bar" style="height:77px; background: linear-gradient(180deg, #fdd835, #f9a825);"></div>
+                    <div class="bar-label">Min 2</div>
+                </div>
+                <div class="bar-group">
+                    <div class="bar-value" style="color:#fdd835;">239.3</div>
+                    <div class="bar" style="height:101px; background: linear-gradient(180deg, #fdd835, #f9a825);"></div>
+                    <div class="bar-label">Min 3</div>
+                </div>
+                <div class="bar-group">
+                    <div class="bar-value" style="color:#fdd835;">346.1</div>
+                    <div class="bar" style="height:147px; background: linear-gradient(180deg, #fdd835, #f9a825);"></div>
+                    <div class="bar-label">Min 4</div>
+                </div>
+                <div class="bar-group">
+                    <div class="bar-value" style="color:#fdd835;">356.3</div>
+                    <div class="bar" style="height:151px; background: linear-gradient(180deg, #fdd835, #f9a825);"></div>
+                    <div class="bar-label">Min 5</div>
+                </div>
+                <div class="bar-group">
+                    <div class="bar-value" style="color:#fdd835;">363.3</div>
+                    <div class="bar" style="height:154px; background: linear-gradient(180deg, #fdd835, #f9a825);"></div>
+                    <div class="bar-label">Min 6</div>
+                </div>
+                <div class="bar-group">
+                    <div class="bar-value" style="color:#66bb6a;">452.1</div>
+                    <div class="bar" style="height:191px; background: linear-gradient(180deg, #66bb6a, #388e3c);"></div>
+                    <div class="bar-label">Min 7</div>
+                </div>
+                <div class="bar-group">
+                    <div class="bar-value" style="color:#66bb6a;">456.5</div>
+                    <div class="bar" style="height:193px; background: linear-gradient(180deg, #66bb6a, #388e3c);"></div>
+                    <div class="bar-label">Min 8</div>
+                </div>
+                <div class="bar-group">
+                    <div class="bar-value" style="color:#66bb6a;">472.2</div>
+                    <div class="bar" style="height:200px; background: linear-gradient(180deg, #66bb6a, #388e3c);"></div>
+                    <div class="bar-label">Min 9</div>
+                </div>
+                <div class="bar-group">
+                    <div class="bar-value" style="color:#66bb6a;">458.2</div>
+                    <div class="bar" style="height:194px; background: linear-gradient(180deg, #66bb6a, #388e3c);"></div>
+                    <div class="bar-label">Min 10</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section-title">Latency Distribution (Snowflake-Side vs JMeter E2E)</div>
+        <div class="chart-container">
+            <div class="chart-title">P50 / P95 / P99 Latency (ms) &mdash; Snowflake Server vs JMeter Steady State (Min 7-10)</div>
+            <div class="latency-chart">
+                <div class="latency-group">
+                    <div class="latency-bars">
+                        <div class="lat-bar p50" style="height: calc(168 / 1500 * 130px);" title="P50: 168ms"></div>
+                        <div class="lat-bar p95" style="height: calc(259 / 1500 * 130px);" title="P95: 259ms"></div>
+                        <div class="lat-bar p99" style="height: calc(311 / 1500 * 130px);" title="P99: 311ms"></div>
+                    </div>
+                    <div style="font-size:11px; color:#6b8dad;">Snowflake-Side</div>
+                    <div style="font-size:10px; color:#4fc3f7; margin-top:2px;">168 / 259 / 311</div>
+                </div>
+                <div class="latency-group">
+                    <div class="latency-bars">
+                        <div class="lat-bar p50" style="height: calc(979 / 1500 * 130px);" title="P50: 979ms"></div>
+                        <div class="lat-bar p95" style="height: calc(1188 / 1500 * 130px);" title="P95: 1188ms"></div>
+                        <div class="lat-bar p99" style="height: calc(1394 / 1500 * 130px);" title="P99: 1394ms"></div>
+                    </div>
+                    <div style="font-size:11px; color:#6b8dad;">JMeter E2E (Steady State)</div>
+                    <div style="font-size:10px; color:#ce93d8; margin-top:2px;">979 / 1,188 / 1,394</div>
+                </div>
+            </div>
+            <div class="legend">
+                <div class="legend-item"><div class="legend-dot" style="background:#4fc3f7;"></div> P50</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#ff9800;"></div> P95</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#ef5350;"></div> P99</div>
+            </div>
+        </div>
+
+        <div class="section-title">Cluster Distribution (INFORMATION_SCHEMA &mdash; 10K Sample)</div>
+        <p style="font-size:12px; color:#546e7a; margin-bottom:14px;">10,000 sampled queries distributed across 10 clusters (shares scaled to 100%). Load well balanced at 9.3% &ndash; 11.2% each.</p>
+        <table class="results-table">
+            <thead>
+                <tr>
+                    <th>Cluster</th>
+                    <th>Queries</th>
+                    <th>Share %</th>
+                    <th>Avg (ms)</th>
+                    <th>P50 (ms)</th>
+                    <th>P99 (ms)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>1</td>
+                    <td>955</td>
+                    <td>9.6%</td>
+                    <td class="latency">188.7</td>
+                    <td class="latency">178</td>
+                    <td class="latency">369</td>
+                </tr>
+                <tr>
+                    <td>2</td>
+                    <td>1,015</td>
+                    <td>10.2%</td>
+                    <td class="latency">194.0</td>
+                    <td class="latency">186</td>
+                    <td class="latency">371</td>
+                </tr>
+                <tr>
+                    <td>3</td>
+                    <td>1,122</td>
+                    <td>11.2%</td>
+                    <td class="latency">188.2</td>
+                    <td class="latency">178</td>
+                    <td class="latency">373</td>
+                </tr>
+                <tr>
+                    <td>4</td>
+                    <td>972</td>
+                    <td>9.7%</td>
+                    <td class="latency">191.0</td>
+                    <td class="latency">183</td>
+                    <td class="latency">354</td>
+                </tr>
+                <tr>
+                    <td>5</td>
+                    <td>1,085</td>
+                    <td>10.9%</td>
+                    <td class="latency">193.2</td>
+                    <td class="latency">185</td>
+                    <td class="latency">357</td>
+                </tr>
+                <tr>
+                    <td>6</td>
+                    <td>971</td>
+                    <td>9.7%</td>
+                    <td class="latency">179.7</td>
+                    <td class="latency">171</td>
+                    <td class="latency">351</td>
+                </tr>
+                <tr>
+                    <td>7</td>
+                    <td>1,007</td>
+                    <td>10.1%</td>
+                    <td class="latency">186.9</td>
+                    <td class="latency">179</td>
+                    <td class="latency">349</td>
+                </tr>
+                <tr>
+                    <td>8</td>
+                    <td>994</td>
+                    <td>9.9%</td>
+                    <td class="latency">187.1</td>
+                    <td class="latency">177</td>
+                    <td class="latency">353</td>
+                </tr>
+                <tr>
+                    <td>9</td>
+                    <td>934</td>
+                    <td>9.3%</td>
+                    <td class="latency">193.2</td>
+                    <td class="latency">185</td>
+                    <td class="latency">337</td>
+                </tr>
+                <tr>
+                    <td>10</td>
+                    <td>945</td>
+                    <td>9.5%</td>
+                    <td class="latency">191.0</td>
+                    <td class="latency">184</td>
+                    <td class="latency">361</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="section-title">Error Analysis</div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px;">
+            <div style="background: #162230; border-radius: 10px; padding: 20px; border: 1px solid #1e3a52;">
+                <div style="font-size: 13px; font-weight: 600; color: #7eb8f7; margin-bottom: 14px; text-transform: uppercase; letter-spacing: 1px;">Snowflake-Side</div>
+                <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px;">
+                    <span style="font-size: 36px; font-weight: 800; color: #66bb6a;">0</span>
+                    <span style="font-size: 13px; color: #90a4ae;">errors</span>
+                </div>
+                <div style="font-size: 12px; color: #546e7a; line-height: 1.8;">
+                    All 206,086 queries completed successfully<br>
+                    No query timeouts<br>
+                    <span style="color: #66bb6a; font-weight: 600;">Zero failures throughout entire test</span>
+                </div>
+            </div>
+            <div style="background: #162230; border-radius: 10px; padding: 20px; border: 1px solid #1e3a52;">
+                <div style="font-size: 13px; font-weight: 600; color: #7eb8f7; margin-bottom: 14px; text-transform: uppercase; letter-spacing: 1px;">Client-Side (JMeter)</div>
+                <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px;">
+                    <span style="font-size: 36px; font-weight: 800; color: #66bb6a;">0</span>
+                    <span style="font-size: 13px; color: #90a4ae;">JMeter errors</span>
+                </div>
+                <div style="font-size: 12px; color: #546e7a; line-height: 1.8;">
+                    Zero failures across all 6 pods<br>
+                    206,086 requests / 0 errors (0.00%)<br>
+                    <span style="color: #66bb6a; font-weight: 600;">100% success rate on client-side</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="section-title">Concurrent Kafka Streaming Ingestion</div>
+        <div class="kafka-box">
+            <div class="kafka-title">Snowpipe Streaming v2 via Kafka Connect &mdash; Running Concurrently with JMeter Read Load</div>
+            <div class="kafka-grid">
+                <div class="kafka-item">
+                    <div class="k-label">Ingestion Method</div>
+                    <div class="k-value" style="font-size:14px;">Snowpipe Streaming v2</div>
+                    <div class="k-sub">Kafka Connect</div>
+                </div>
+                <div class="kafka-item">
+                    <div class="k-label">Producer Rate</div>
+                    <div class="k-value">33.6K msg/s</div>
+                    <div class="k-sub">26.2 MB/s produced</div>
+                </div>
+                <div class="kafka-item">
+                    <div class="k-label">Snowflake Landing Rate</div>
+                    <div class="k-value" style="color:#66bb6a;">~23.5 MB/s</div>
+                    <div class="k-sub">average</div>
+                </div>
+                <div class="kafka-item">
+                    <div class="k-label">Kafka Tasks</div>
+                    <div class="k-value">6</div>
+                    <div class="k-sub">6 topic partitions</div>
+                </div>
+                <div class="kafka-item">
+                    <div class="k-label">Total Messages</div>
+                    <div class="k-value">~49M</div>
+                    <div class="k-sub">over ~24 minutes</div>
+                </div>
+                <div class="kafka-item">
+                    <div class="k-label">Buffer Config</div>
+                    <div class="k-value" style="font-size:14px;">1s / 10K</div>
+                    <div class="k-sub">flush.time / count.records</div>
+                </div>
+            </div>
+            <div style="margin-top: 16px; font-size: 12px; color: #7986cb; line-height: 1.6;">
+                Kafka ingestion ran concurrently with JMeter read load test for the full 10-minute duration. Interactive table handled concurrent read (206K queries) + write (49M rows streamed) with no degradation.
+            </div>
+        </div>
+
+        <div class="section-title">Test Query</div>
+        <div class="query-box">
+            <pre><span class="keyword">SELECT</span>
+    CR.CR_ORDER_NUMBER <span class="keyword">AS</span> ORDER_KEY,
+    CR.CR_REFUNDED_CUSTOMER_SK <span class="keyword">AS</span> CUST_KEY,
+    <span class="func">COUNT</span>(<span class="keyword">DISTINCT</span> CR.CR_REFUNDED_CUSTOMER_SK) <span class="func">OVER</span> (<span class="keyword">PARTITION BY</span> CR.CR_ORDER_NUMBER) <span class="keyword">AS</span> ORDER_CUST_COUNT,
+    <span class="func">SUM</span>(<span class="func">COALESCE</span>(CR.CR_RETURN_AMOUNT, 0)) <span class="keyword">AS</span> TOTAL_RETURN_AMOUNT,
+    <span class="func">MAX</span>(CR.CR_REASON_SK) <span class="keyword">AS</span> MAX_REASON,
+    <span class="func">MAX</span>(CR.CR_CALL_CENTER_SK) <span class="keyword">AS</span> MAX_CALL_CENTER,
+    <span class="func">MIN</span>(CR.CR_RETURNED_DATE_SK) <span class="keyword">AS</span> MIN_RETURN_DATE_SK,
+    <span class="func">MAX</span>(CR.CR_RETURNED_DATE_SK) <span class="keyword">AS</span> MAX_RETURN_DATE_SK
+<span class="keyword">FROM</span> <span class="table-name">INTERACTIVE_DEMO.TPCH_INTERACTIVE.ORDERS_INTERACTIVE</span> <span class="keyword">AS</span> CR
+<span class="keyword">WHERE</span> CR.CR_RETURNED_DATE_SK <span class="keyword">BETWEEN</span> 2452912 <span class="keyword">AND</span> 2452924
+  <span class="keyword">AND</span> CR.CR_WAREHOUSE_SK <span class="keyword">IS NOT NULL</span>
+<span class="keyword">GROUP BY</span> CR.CR_ORDER_NUMBER, CR.CR_REFUNDED_CUSTOMER_SK</pre>
+            <div style="margin-top:12px; font-size:11px; color:#546e7a;">
+                Table: ORDERS_INTERACTIVE (~76+ GB, 1.44B+ rows + ~49M streamed) &middot; Result: ~12,381 rows, ~315 KB &middot; Scan: ~14.73 MB/query
+            </div>
+        </div>
+
+        <div class="notes">
+            <h3>Observations</h3>
+            <ul>
+                <li><strong>342.8 avg QPS</strong> from JMeter (206,086 queries / 601 seconds) with only 6 pods and 480 threads</li>
+                <li>Peak minute QPS of <strong>472.2 at minute 9</strong> &mdash; throughput increased as connection pools warmed</li>
+                <li>Concurrent Kafka streaming at <strong>~23.5 MB/sec had minimal impact on query latency</strong> &mdash; Snowflake P50 stayed at 168ms</li>
+                <li>Snowflake-side latency remarkably stable: P50=168ms, P95=259ms, P99=311ms (from INFORMATION_SCHEMA sample)</li>
+                <li>JMeter E2E latency (steady state min 7-10): Avg ~995ms, P50 ~979ms, P95 ~1,188ms &mdash; overhead ~820ms vs Snowflake-side due to S3 result download + JDBC/network</li>
+                <li>Load balanced across all 10 clusters: <strong>9.3% &ndash; 11.2%</strong> share each</li>
+                <li><strong>Zero errors</strong> on both Snowflake-side and JMeter client-side</li>
+                <li>Minutes 1-3 show warmup phase with higher latency (connection pool initialization + SSD cache warming)</li>
+                <li>Minutes 7-10 show steady-state performance with consistent ~450 QPS and sub-1000ms P50</li>
+                <li>Interactive table handled concurrent read (206K queries) + write (49M rows streamed) with no degradation</li>
+                <li>Test ran from us-west-2 (Oregon EKS) to Snowflake account in us-west-2</li>
+            </ul>
+        </div>
+
+        <div class="footer">
+            Generated: 2026-03-28 &middot; Snowflake Account: SFPSCOGS-RNELLIKAL &middot; EKS Cluster: rnellikal-jmeter-interactive-poc (us-west-2) &middot; Concurrent Kafka Streaming: ~23.5 MB/sec
+        </div>
+    </div>
+</body>
+</html>
