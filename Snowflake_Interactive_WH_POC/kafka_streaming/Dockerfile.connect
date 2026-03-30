@@ -1,0 +1,21 @@
+FROM confluentinc/cp-kafka-connect:7.6.0
+
+USER root
+
+RUN mkdir -p /usr/share/confluent-hub-components/snowflake-kafka-connector
+
+# Snowflake Kafka Connector 4.0.0-rc6 (supports Snowpipe Streaming v2)
+RUN curl -L -o /tmp/snowflake-kafka-connector-4.0.0-rc6.jar \
+    https://repo1.maven.org/maven2/com/snowflake/snowflake-kafka-connector/4.0.0-rc6/snowflake-kafka-connector-4.0.0-rc6.jar && \
+    mv /tmp/snowflake-kafka-connector-4.0.0-rc6.jar /usr/share/confluent-hub-components/snowflake-kafka-connector/
+
+# BouncyCastle FIPS libraries for RSA key pair authentication
+RUN curl -L -o /tmp/bc-fips-2.1.0.jar \
+    https://repo1.maven.org/maven2/org/bouncycastle/bc-fips/2.1.0/bc-fips-2.1.0.jar && \
+    mv /tmp/bc-fips-2.1.0.jar /usr/share/confluent-hub-components/snowflake-kafka-connector/
+
+RUN curl -L -o /tmp/bcpkix-fips-2.1.8.jar \
+    https://repo1.maven.org/maven2/org/bouncycastle/bcpkix-fips/2.1.8/bcpkix-fips-2.1.8.jar && \
+    mv /tmp/bcpkix-fips-2.1.8.jar /usr/share/confluent-hub-components/snowflake-kafka-connector/
+
+USER appuser

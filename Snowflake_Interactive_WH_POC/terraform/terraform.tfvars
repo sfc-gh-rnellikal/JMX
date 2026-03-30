@@ -1,0 +1,9 @@
+aws_region         = "us-west-2"
+cluster_name       = "jmeter-load-test"
+kubernetes_version = "1.35"
+vpc_cidr           = "10.0.0.0/16"
+node_instance_type = "m5.xlarge"
+node_desired_size  = 8
+node_min_size      = 8
+node_max_size      = 10
+ecr_repo_name      = "jmeter-snowflake"

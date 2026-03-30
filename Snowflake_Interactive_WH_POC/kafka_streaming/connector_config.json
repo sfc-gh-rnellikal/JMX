@@ -1,0 +1,28 @@
+{
+  "name": "snowflake-orders",
+  "config": {
+    "connector.class": "com.snowflake.kafka.connector.SnowflakeStreamingSinkConnector",
+    "tasks.max": "6",
+    "topics": "orders_data",
+    "snowflake.url.name": "sfpscogs-rnellikal.snowflakecomputing.com",
+    "snowflake.user.name": "KAFKA_USER",
+    "snowflake.private.key": "<YOUR_PRIVATE_KEY_HERE>",
+    "snowflake.role.name": "KAFKA_CONNECTOR_ROLE",
+    "snowflake.database.name": "INTERACTIVE_DEMO",
+    "snowflake.schema.name": "TPCH_INTERACTIVE",
+    "snowflake.topic2table.map": "orders_data:ORDERS_INTERACTIVE",
+    "snowflake.ingestion.method": "SNOWPIPE_STREAMING",
+    "snowflake.streaming.v2.enabled": "true",
+    "snowflake.enable.schematization": "TRUE",
+    "snowflake.streaming.enable.altering.target.pipes.tables": "true",
+    "buffer.count.records": "10000",
+    "buffer.flush.time": "1",
+    "buffer.size.bytes": "20000000",
+    "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": "false",
+    "errors.tolerance": "all",
+    "errors.log.enable": "true",
+    "consumer.override.auto.offset.reset": "latest"
+  }
+}

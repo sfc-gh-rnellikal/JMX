@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>K8s Load Test - 15 Pods x 80 Threads - Snowflake Interactive WH</title>
+<style>
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 20px; background: #f5f5f5; }
+.container { max-width: 1200px; margin: 0 auto; }
+h1 { color: #1a73e8; border-bottom: 3px solid #1a73e8; padding-bottom: 10px; }
+h2 { color: #333; margin-top: 30px; }
+.summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin: 20px 0; }
+.card { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center; }
+.card .value { font-size: 2em; font-weight: bold; color: #1a73e8; }
+.card .label { color: #666; font-size: 0.9em; margin-top: 5px; }
+.success { color: #0d9488 !important; }
+.warning { color: #f59e0b !important; }
+.danger { color: #ef4444 !important; }
+table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin: 15px 0; }
+th { background: #1a73e8; color: white; padding: 12px 8px; text-align: center; font-size: 0.85em; }
+td { padding: 10px 8px; text-align: center; border-bottom: 1px solid #eee; font-size: 0.85em; }
+tr:hover { background: #f0f7ff; }
+.config-box { background: white; border-radius: 8px; padding: 15px 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin: 15px 0; }
+.config-box code { background: #f0f0f0; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
+.chart-container { background: white; border-radius: 8px; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin: 15px 0; }
+canvas { max-width: 100%; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.75em; font-weight: bold; }
+.badge-success { background: #d1fae5; color: #065f46; }
+.badge-danger { background: #fee2e2; color: #991b1b; }
+.note { background: #e8f4fd; border-left: 4px solid #1a73e8; padding: 12px 16px; border-radius: 4px; margin: 15px 0; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+<div class="container">
+<h1>K8s Load Test: 15 Pods x 80 Threads (1,200 Concurrent)</h1>
+<p>Snowflake Interactive Warehouse Load Test &mdash; March 25, 2026 (Run 2)</p>
+
+<div class="note">
+<strong>Infrastructure:</strong> EKS cluster <code>rnellikal-jmeter-interactive-poc</code> in <strong>us-west-1</strong> (N. California) with 15x <code>m5.xlarge</code> nodes.
+Each pod runs JMeter with 80 threads, 30 connection pool, 900s duration. Total: <strong>1,200 concurrent threads</strong> across 15 pods.
+</div>
+
+<div class="summary-grid">
+<div class="card"><div class="value success">100.0%</div><div class="label">Success Rate</div></div>
+<div class="card"><div class="value">266.0</div><div class="label">Successful QPS</div></div>
+<div class="card"><div class="value">2,034ms</div><div class="label">Avg Response Time</div></div>
+<div class="card"><div class="value">1,748ms</div><div class="label">P50 Latency</div></div>
+<div class="card"><div class="value">2,860ms</div><div class="label">P90 Latency</div></div>
+<div class="card"><div class="value">6,081ms</div><div class="label">P99 Latency</div></div>
+<div class="card"><div class="value">253,955</div><div class="label">Total Queries</div></div>
+<div class="card"><div class="value">544</div><div class="label">Peak 1s QPS</div></div>
+</div>
+
+<h2>Test Configuration</h2>
+<div class="config-box">
+<strong>Warehouse:</strong> <code>TPCH_INTERACTIVE_WH</code> &mdash; Interactive Warehouse<br>
+<strong>Account:</strong> <code>SFPSCOGS-RNELLIKAL</code><br>
+<strong>Database:</strong> <code>INTERACTIVE_DEMO.TPCH_INTERACTIVE</code><br>
+<strong>Infrastructure:</strong> EKS (us-west-1) &mdash; 15x m5.xlarge nodes, 1 pod per node<br>
+<strong>JMeter:</strong> 15 pods x 80 threads = 1,200 total concurrent threads<br>
+<strong>Connection Pool:</strong> 30 per pod (450 total) &nbsp;|&nbsp; <strong>Duration:</strong> 900s per run<br>
+<strong>Image:</strong> <code>087354435437.dkr.ecr.us-west-1.amazonaws.com/jmeter-snowflake:latest</code><br>
+<strong>JDBC Properties:</strong> USE_CACHED_RESULT=false, CLIENT_SESSION_KEEP_ALIVE=true, JDBC_QUERY_RESULT_FORMAT=ARROW<br>
+<strong>Result Set:</strong> Count Records handler (full result download with ARROW chunks)
+</div>
+
+<h2>Latency Distribution</h2>
+<div class="config-box">
+<table>
+<tr><th>Metric</th><th>Value</th></tr>
+<tr><td>Min</td><td>309ms</td></tr>
+<tr><td>Average</td><td>2,034ms</td></tr>
+<tr><td>P50 (Median)</td><td>1,748ms</td></tr>
+<tr><td>P90</td><td>2,860ms</td></tr>
+<tr><td>P95</td><td>3,541ms</td></tr>
+<tr><td>P99</td><td>6,081ms</td></tr>
+<tr><td>Max</td><td>64,015ms</td></tr>
+</table>
+</div>
+
+<h2>Timeline</h2>
+<div class="config-box">
+<strong>Start:</strong> 2026-03-25 01:56:46 UTC<br>
+<strong>End:</strong> 2026-03-25 02:12:40 UTC<br>
+<strong>Duration:</strong> 955 seconds (15.9 minutes)
+</div>
+
+<h2>QPS Over Time</h2>
+<div class="chart-container">
+<canvas id="qpsChart" height="80"></canvas>
+</div>
+
+<h2>Response Time Distribution</h2>
+<div class="chart-container">
+<canvas id="rtChart" height="80"></canvas>
+</div>
+
+<script>
+const qpsData = [{"sec": 0, "total": 130.2, "success": 130.2}, {"sec": 5, "total": 13.8, "success": 13.8}, {"sec": 10, "total": 176.6, "success": 176.6}, {"sec": 15, "total": 488.0, "success": 488.0}, {"sec": 20, "total": 470.2, "success": 470.2}, {"sec": 25, "total": 408.2, "success": 408.2}, {"sec": 30, "total": 399.4, "success": 399.4}, {"sec": 35, "total": 422.4, "success": 422.4}, {"sec": 40, "total": 408.0, "success": 408.0}, {"sec": 45, "total": 370.2, "success": 370.2}, {"sec": 50, "total": 348.8, "success": 348.8}, {"sec": 55, "total": 247.8, "success": 247.8}, {"sec": 60, "total": 155.4, "success": 155.4}, {"sec": 65, "total": 118.4, "success": 118.4}, {"sec": 70, "total": 105.2, "success": 105.2}, {"sec": 75, "total": 181.2, "success": 181.2}, {"sec": 80, "total": 227.0, "success": 227.0}, {"sec": 85, "total": 261.6, "success": 261.6}, {"sec": 90, "total": 235.8, "success": 235.8}, {"sec": 95, "total": 313.0, "success": 313.0}, {"sec": 100, "total": 282.2, "success": 282.2}, {"sec": 105, "total": 274.6, "success": 274.6}, {"sec": 110, "total": 280.0, "success": 280.0}, {"sec": 115, "total": 309.6, "success": 309.6}, {"sec": 120, "total": 177.4, "success": 177.4}, {"sec": 125, "total": 189.6, "success": 189.6}, {"sec": 130, "total": 296.4, "success": 296.4}, {"sec": 135, "total": 332.4, "success": 332.4}, {"sec": 140, "total": 279.0, "success": 279.0}, {"sec": 145, "total": 260.6, "success": 260.6}, {"sec": 150, "total": 262.0, "success": 262.0}, {"sec": 155, "total": 294.8, "success": 294.8}, {"sec": 160, "total": 300.4, "success": 300.4}, {"sec": 165, "total": 251.0, "success": 251.0}, {"sec": 170, "total": 324.0, "success": 324.0}, {"sec": 175, "total": 364.6, "success": 364.6}, {"sec": 180, "total": 346.2, "success": 346.2}, {"sec": 185, "total": 348.0, "success": 348.0}, {"sec": 190, "total": 285.2, "success": 285.2}, {"sec": 195, "total": 181.4, "success": 181.4}, {"sec": 200, "total": 231.2, "success": 231.2}, {"sec": 205, "total": 331.6, "success": 331.6}, {"sec": 210, "total": 285.6, "success": 285.6}, {"sec": 215, "total": 228.8, "success": 228.8}, {"sec": 220, "total": 217.4, "success": 217.4}, {"sec": 225, "total": 231.0, "success": 231.0}, {"sec": 230, "total": 267.2, "success": 267.2}, {"sec": 235, "total": 293.8, "success": 293.8}, {"sec": 240, "total": 273.4, "success": 273.4}, {"sec": 245, "total": 141.8, "success": 141.8}, {"sec": 250, "total": 159.2, "success": 159.2}, {"sec": 255, "total": 288.0, "success": 288.0}, {"sec": 260, "total": 319.4, "success": 319.4}, {"sec": 265, "total": 305.8, "success": 305.8}, {"sec": 270, "total": 299.8, "success": 299.8}, {"sec": 275, "total": 329.6, "success": 329.6}, {"sec": 280, "total": 357.0, "success": 357.0}, {"sec": 285, "total": 401.6, "success": 401.6}, {"sec": 290, "total": 399.2, "success": 399.2}, {"sec": 295, "total": 306.6, "success": 306.6}, {"sec": 300, "total": 261.8, "success": 261.8}, {"sec": 305, "total": 253.8, "success": 253.8}, {"sec": 310, "total": 309.2, "success": 309.2}, {"sec": 315, "total": 353.6, "success": 353.6}, {"sec": 320, "total": 227.8, "success": 227.8}, {"sec": 325, "total": 235.8, "success": 235.8}, {"sec": 330, "total": 266.4, "success": 266.4}, {"sec": 335, "total": 250.0, "success": 250.0}, {"sec": 340, "total": 281.2, "success": 281.2}, {"sec": 345, "total": 240.0, "success": 240.0}, {"sec": 350, "total": 189.8, "success": 189.8}, {"sec": 355, "total": 276.2, "success": 276.2}, {"sec": 360, "total": 324.4, "success": 324.4}, {"sec": 365, "total": 338.6, "success": 338.6}, {"sec": 370, "total": 330.0, "success": 330.0}, {"sec": 375, "total": 359.2, "success": 359.2}, {"sec": 380, "total": 340.8, "success": 340.8}, {"sec": 385, "total": 301.2, "success": 301.2}, {"sec": 390, "total": 257.8, "success": 257.8}, {"sec": 395, "total": 317.6, "success": 317.6}, {"sec": 400, "total": 297.8, "success": 297.8}, {"sec": 405, "total": 299.0, "success": 299.0}, {"sec": 410, "total": 337.2, "success": 337.2}, {"sec": 415, "total": 336.8, "success": 336.8}, {"sec": 420, "total": 284.6, "success": 284.6}, {"sec": 425, "total": 250.6, "success": 250.6}, {"sec": 430, "total": 252.8, "success": 252.8}, {"sec": 435, "total": 294.2, "success": 294.2}, {"sec": 440, "total": 308.8, "success": 308.8}, {"sec": 445, "total": 229.0, "success": 229.0}, {"sec": 450, "total": 185.4, "success": 185.4}, {"sec": 455, "total": 187.8, "success": 187.8}, {"sec": 460, "total": 281.6, "success": 281.6}, {"sec": 465, "total": 275.4, "success": 275.4}, {"sec": 470, "total": 361.4, "success": 361.4}, {"sec": 475, "total": 340.6, "success": 340.6}, {"sec": 480, "total": 393.2, "success": 393.2}, {"sec": 485, "total": 321.2, "success": 321.2}, {"sec": 490, "total": 307.4, "success": 307.4}, {"sec": 495, "total": 311.6, "success": 311.6}, {"sec": 500, "total": 372.4, "success": 372.4}, {"sec": 505, "total": 326.2, "success": 326.2}, {"sec": 510, "total": 179.8, "success": 179.8}, {"sec": 515, "total": 179.4, "success": 179.4}, {"sec": 520, "total": 277.2, "success": 277.2}, {"sec": 525, "total": 320.2, "success": 320.2}, {"sec": 530, "total": 210.6, "success": 210.6}, {"sec": 535, "total": 226.4, "success": 226.4}, {"sec": 540, "total": 257.6, "success": 257.6}, {"sec": 545, "total": 225.2, "success": 225.2}, {"sec": 550, "total": 223.0, "success": 223.0}, {"sec": 555, "total": 215.8, "success": 215.8}, {"sec": 560, "total": 279.8, "success": 279.8}, {"sec": 565, "total": 282.2, "success": 282.2}, {"sec": 570, "total": 199.8, "success": 199.8}, {"sec": 575, "total": 246.4, "success": 246.4}, {"sec": 580, "total": 376.2, "success": 376.2}, {"sec": 585, "total": 347.0, "success": 347.0}, {"sec": 590, "total": 371.2, "success": 371.2}, {"sec": 595, "total": 271.2, "success": 271.2}, {"sec": 600, "total": 200.2, "success": 200.2}, {"sec": 605, "total": 184.4, "success": 184.4}, {"sec": 610, "total": 201.8, "success": 201.8}, {"sec": 615, "total": 221.6, "success": 221.6}, {"sec": 620, "total": 327.2, "success": 327.2}, {"sec": 625, "total": 295.0, "success": 295.0}, {"sec": 630, "total": 336.2, "success": 336.2}, {"sec": 635, "total": 314.4, "success": 314.4}, {"sec": 640, "total": 231.0, "success": 231.0}, {"sec": 645, "total": 307.6, "success": 307.6}, {"sec": 650, "total": 352.4, "success": 352.4}, {"sec": 655, "total": 253.2, "success": 253.2}, {"sec": 660, "total": 191.6, "success": 191.6}, {"sec": 665, "total": 234.4, "success": 234.4}, {"sec": 670, "total": 243.0, "success": 243.0}, {"sec": 675, "total": 267.8, "success": 267.8}, {"sec": 680, "total": 282.4, "success": 282.4}, {"sec": 685, "total": 252.6, "success": 252.6}, {"sec": 690, "total": 289.8, "success": 289.8}, {"sec": 695, "total": 184.8, "success": 184.8}, {"sec": 700, "total": 256.4, "success": 256.4}, {"sec": 705, "total": 238.0, "success": 238.0}, {"sec": 710, "total": 220.6, "success": 220.6}, {"sec": 715, "total": 236.2, "success": 236.2}, {"sec": 720, "total": 293.2, "success": 293.2}, {"sec": 725, "total": 332.8, "success": 332.8}, {"sec": 730, "total": 333.8, "success": 333.8}, {"sec": 735, "total": 339.6, "success": 339.6}, {"sec": 740, "total": 261.4, "success": 261.4}, {"sec": 745, "total": 348.2, "success": 348.2}, {"sec": 750, "total": 389.0, "success": 389.0}, {"sec": 755, "total": 333.6, "success": 333.6}, {"sec": 760, "total": 373.8, "success": 373.8}, {"sec": 765, "total": 343.4, "success": 343.4}, {"sec": 770, "total": 383.2, "success": 383.2}, {"sec": 775, "total": 324.8, "success": 324.8}, {"sec": 780, "total": 239.4, "success": 239.4}, {"sec": 785, "total": 280.0, "success": 280.0}, {"sec": 790, "total": 376.6, "success": 376.6}, {"sec": 795, "total": 291.0, "success": 291.0}, {"sec": 800, "total": 362.6, "success": 362.6}, {"sec": 805, "total": 260.2, "success": 260.2}, {"sec": 810, "total": 282.0, "success": 282.0}, {"sec": 815, "total": 315.2, "success": 315.2}, {"sec": 820, "total": 257.4, "success": 257.4}, {"sec": 825, "total": 257.4, "success": 257.4}, {"sec": 830, "total": 307.4, "success": 307.4}, {"sec": 835, "total": 305.6, "success": 305.6}, {"sec": 840, "total": 288.4, "success": 288.4}, {"sec": 845, "total": 214.8, "success": 214.8}, {"sec": 850, "total": 203.6, "success": 203.6}, {"sec": 855, "total": 278.0, "success": 278.0}, {"sec": 860, "total": 363.0, "success": 363.0}, {"sec": 865, "total": 310.8, "success": 310.8}, {"sec": 870, "total": 196.0, "success": 196.0}, {"sec": 875, "total": 265.2, "success": 265.2}, {"sec": 880, "total": 283.6, "success": 283.6}, {"sec": 885, "total": 251.4, "success": 251.4}, {"sec": 890, "total": 255.4, "success": 255.4}, {"sec": 895, "total": 234.8, "success": 234.8}, {"sec": 900, "total": 131.0, "success": 131.0}, {"sec": 905, "total": 0.0, "success": 0.0}, {"sec": 910, "total": 0.0, "success": 0.0}, {"sec": 915, "total": 0.0, "success": 0.0}, {"sec": 920, "total": 0.0, "success": 0.0}, {"sec": 925, "total": 0.0, "success": 0.0}, {"sec": 930, "total": 0.0, "success": 0.0}, {"sec": 935, "total": 0.0, "success": 0.0}, {"sec": 940, "total": 0.0, "success": 0.0}, {"sec": 945, "total": 11.0, "success": 11.0}, {"sec": 950, "total": 42.0, "success": 42.0}];
+const ctx1 = document.getElementById('qpsChart').getContext('2d');
+new Chart(ctx1, {
+    type: 'line',
+    data: {
+        labels: qpsData.map(d => d.sec + 's'),
+        datasets: [{
+            label: 'Total QPS',
+            data: qpsData.map(d => d.total),
+            borderColor: '#1a73e8',
+            backgroundColor: 'rgba(26,115,232,0.1)',
+            fill: true,
+            tension: 0.3,
+            pointRadius: 0
+        }, {
+            label: 'Successful QPS',
+            data: qpsData.map(d => d.success),
+            borderColor: '#0d9488',
+            backgroundColor: 'rgba(13,148,136,0.1)',
+            fill: true,
+            tension: 0.3,
+            pointRadius: 0
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: { title: { display: true, text: 'Queries Per Second Over Time (15 pods combined)' } },
+        scales: {
+            y: { beginAtZero: true, title: { display: true, text: 'QPS' } },
+            x: { title: { display: true, text: 'Time (seconds)' }, ticks: { maxTicksLimit: 30 } }
+        }
+    }
+});
+
+const ctx2 = document.getElementById('rtChart').getContext('2d');
+new Chart(ctx2, {
+    type: 'bar',
+    data: {
+        labels: ["<500ms", "500-1s", "1-2s", "2-3s", "3-4s", "4-5s", "5-7.5s", "7.5-10s", "10-15s", "15-20s", "20-30s", "30-60s", ">60s"],
+        datasets: [{
+            label: 'Query Count',
+            data: [250, 71, 179517, 52138, 13794, 4264, 2240, 549, 1097, 22, 1, 3, 9],
+            backgroundColor: '#1a73e8',
+            borderRadius: 4
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: { title: { display: true, text: 'Response Time Distribution' } },
+        scales: {
+            y: { beginAtZero: true, title: { display: true, text: 'Count' } },
+            x: { title: { display: true, text: 'Response Time Bucket' } }
+        }
+    }
+});
+</script>
+</div>
+</body>
+</html>

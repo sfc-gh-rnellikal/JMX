@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>JMeter Load Test Report - Run 8</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #e2e8f0; padding: 20px; }
+  .header { background: linear-gradient(135deg, #1e40af, #7c3aed); padding: 30px; border-radius: 12px; margin-bottom: 24px; }
+  .header h1 { font-size: 28px; color: #fff; }
+  .header .subtitle { color: #c7d2fe; margin-top: 8px; font-size: 14px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+  .card { background: #1e293b; border-radius: 10px; padding: 20px; border: 1px solid #334155; }
+  .card .label { font-size: 12px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; }
+  .card .value { font-size: 28px; font-weight: 700; margin-top: 4px; }
+  .card .value.green { color: #4ade80; }
+  .card .value.blue { color: #60a5fa; }
+  .card .value.yellow { color: #fbbf24; }
+  .card .value.red { color: #f87171; }
+  .card .value.purple { color: #c084fc; }
+  .chart-container { background: #1e293b; border-radius: 10px; padding: 20px; border: 1px solid #334155; margin-bottom: 24px; }
+  .chart-container h2 { font-size: 16px; color: #94a3b8; margin-bottom: 16px; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; padding: 10px 12px; background: #334155; color: #94a3b8; font-size: 12px; text-transform: uppercase; }
+  td { padding: 10px 12px; border-bottom: 1px solid #334155; font-size: 13px; }
+  tr:hover { background: #334155; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+  .badge-green { background: #065f46; color: #6ee7b7; }
+  .badge-red { background: #7f1d1d; color: #fca5a5; }
+  @media (max-width: 768px) { .two-col { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>Snowflake Interactive WH - JMeter Load Test Report</h1>
+  <div class="subtitle">Run 8 | 2026-03-27 19:51:34 UTC → 20:06:42 UTC | 10 Pods × 80 Threads | Cluster: rnellikal-jmeter-interactive-poc (us-west-2)</div>
+</div>
+
+<div class="grid">
+  <div class="card"><div class="label">Total Requests</div><div class="value blue">523,590</div></div>
+  <div class="card"><div class="label">Throughput (QPS)</div><div class="value green">576.8</div></div>
+  <div class="card"><div class="label">Avg Response Time</div><div class="value yellow">1.325s</div></div>
+  <div class="card"><div class="label">P95 Response Time</div><div class="value yellow">2.247s</div></div>
+  <div class="card"><div class="label">P99 Response Time</div><div class="value purple">3.822s</div></div>
+  <div class="card"><div class="label">Error Rate</div><div class="value green">0.09%</div></div>
+  <div class="card"><div class="label">Duration</div><div class="value blue">908s (15.1m)</div></div>
+  <div class="card"><div class="label">Success / Errors</div><div class="value green">523,103 <span style="color:#f87171">/ 487</span></div></div>
+</div>
+
+<div class="chart-container">
+  <h2>Throughput Over Time (QPS per 10s bucket)</h2>
+  <canvas id="qpsChart" height="80"></canvas>
+</div>
+
+<div class="two-col">
+  <div class="chart-container">
+    <h2>Response Time Over Time</h2>
+    <canvas id="rtChart" height="120"></canvas>
+  </div>
+  <div class="chart-container">
+    <h2>Response Time Distribution</h2>
+    <canvas id="histChart" height="120"></canvas>
+  </div>
+</div>
+
+<div class="two-col">
+  <div class="chart-container">
+    <h2>QPS by Pod</h2>
+    <canvas id="podQpsChart" height="120"></canvas>
+  </div>
+  <div class="chart-container">
+    <h2>Avg Response Time by Pod</h2>
+    <canvas id="podRtChart" height="120"></canvas>
+  </div>
+</div>
+
+<div class="chart-container">
+  <h2>Response Time Summary</h2>
+  <table>
+    <tr><th>Metric</th><th>Value</th></tr>
+    <tr><td>Min</td><td>0.252s</td></tr>
+    <tr><td>Average</td><td>1.325s</td></tr>
+    <tr><td>Median (P50)</td><td>1.156s</td></tr>
+    <tr><td>P90</td><td>1.807s</td></tr>
+    <tr><td>P95</td><td>2.247s</td></tr>
+    <tr><td>P99</td><td>3.822s</td></tr>
+    <tr><td>Max</td><td>33.539s</td></tr>
+    <tr><td>Std Dev</td><td>0.717s</td></tr>
+  </table>
+</div>
+
+<div class="chart-container">
+  <h2>Per-Pod Breakdown</h2>
+  <table>
+    <tr><th>Pod</th><th>Requests</th><th>QPS</th><th>Avg RT</th><th>P95 RT</th><th>Min</th><th>Max</th><th>Errors</th><th>Error %</th></tr>
+    <tr>
+      <td>4k28t</td><td>52,804</td><td>58.2</td>
+      <td>1.313s</td><td>2.217s</td>
+      <td>0.264s</td><td>14.095s</td>
+      <td>54</td><td><span class="badge badge-green">0.1%</span></td>
+    </tr>
+    <tr>
+      <td>4xcjh</td><td>52,156</td><td>57.5</td>
+      <td>1.331s</td><td>2.262s</td>
+      <td>0.270s</td><td>13.826s</td>
+      <td>48</td><td><span class="badge badge-green">0.1%</span></td>
+    </tr>
+    <tr>
+      <td>7xp4b</td><td>52,588</td><td>57.9</td>
+      <td>1.319s</td><td>2.220s</td>
+      <td>0.272s</td><td>15.923s</td>
+      <td>48</td><td><span class="badge badge-green">0.1%</span></td>
+    </tr>
+    <tr>
+      <td>8l4c7</td><td>52,454</td><td>57.8</td>
+      <td>1.323s</td><td>2.254s</td>
+      <td>0.263s</td><td>16.308s</td>
+      <td>53</td><td><span class="badge badge-green">0.1%</span></td>
+    </tr>
+    <tr>
+      <td>bthrr</td><td>52,251</td><td>57.6</td>
+      <td>1.328s</td><td>2.239s</td>
+      <td>0.252s</td><td>16.055s</td>
+      <td>52</td><td><span class="badge badge-green">0.1%</span></td>
+    </tr>
+    <tr>
+      <td>mn5qd</td><td>52,171</td><td>57.5</td>
+      <td>1.330s</td><td>2.261s</td>
+      <td>0.265s</td><td>14.839s</td>
+      <td>40</td><td><span class="badge badge-green">0.1%</span></td>
+    </tr>
+    <tr>
+      <td>rvk4t</td><td>52,163</td><td>57.5</td>
+      <td>1.330s</td><td>2.260s</td>
+      <td>0.259s</td><td>15.195s</td>
+      <td>52</td><td><span class="badge badge-green">0.1%</span></td>
+    </tr>
+    <tr>
+      <td>tkw9p</td><td>52,678</td><td>58.0</td>
+      <td>1.317s</td><td>2.213s</td>
+      <td>0.265s</td><td>13.823s</td>
+      <td>53</td><td><span class="badge badge-green">0.1%</span></td>
+    </tr>
+    <tr>
+      <td>vdfgc</td><td>52,078</td><td>57.4</td>
+      <td>1.333s</td><td>2.256s</td>
+      <td>0.262s</td><td>16.784s</td>
+      <td>46</td><td><span class="badge badge-green">0.1%</span></td>
+    </tr>
+    <tr>
+      <td>x6fjc</td><td>52,247</td><td>57.6</td>
+      <td>1.328s</td><td>2.279s</td>
+      <td>0.272s</td><td>33.539s</td>
+      <td>41</td><td><span class="badge badge-green">0.1%</span></td>
+    </tr>
+  </table>
+</div>
+
+<div class="chart-container">
+  <h2>Response Codes</h2>
+  <table>
+    <tr><th>Code</th><th>Count</th><th>Percentage</th></tr>
+    <tr><td>200</td><td>523,103</td><td>99.9%</td></tr>
+    <tr><td>XX000 200001</td><td>487</td><td>0.1%</td></tr>
+  </table>
+</div>
+
+<script>
+const chartDefaults = { responsive: true, maintainAspectRatio: true };
+Chart.defaults.color = '#94a3b8';
+Chart.defaults.borderColor = '#334155';
+
+new Chart(document.getElementById('qpsChart'), {
+  type: 'line',
+  data: {
+    labels: ['19:51:30', '19:51:40', '19:51:50', '19:52:00', '19:52:10', '19:52:20', '19:52:30', '19:52:40', '19:52:50', '19:53:00', '19:53:10', '19:53:20', '19:53:30', '19:53:40', '19:53:50', '19:54:00', '19:54:10', '19:54:20', '19:54:30', '19:54:40', '19:54:50', '19:55:00', '19:55:10', '19:55:20', '19:55:30', '19:55:40', '19:55:50', '19:56:00', '19:56:10', '19:56:20', '19:56:30', '19:56:40', '19:56:50', '19:57:00', '19:57:10', '19:57:20', '19:57:30', '19:57:40', '19:57:50', '19:58:00', '19:58:10', '19:58:20', '19:58:30', '19:58:40', '19:58:50', '19:59:00', '19:59:10', '19:59:20', '19:59:30', '19:59:40', '19:59:50', '20:00:00', '20:00:10', '20:00:20', '20:00:30', '20:00:40', '20:00:50', '20:01:00', '20:01:10', '20:01:20', '20:01:30', '20:01:40', '20:01:50', '20:02:00', '20:02:10', '20:02:20', '20:02:30', '20:02:40', '20:02:50', '20:03:00', '20:03:10', '20:03:20', '20:03:30', '20:03:40', '20:03:50', '20:04:00', '20:04:10', '20:04:20', '20:04:30', '20:04:40', '20:04:50', '20:05:00', '20:05:10', '20:05:20', '20:05:30', '20:05:40', '20:05:50', '20:06:00', '20:06:10', '20:06:20', '20:06:30', '20:06:40'],
+    datasets: [{
+      label: 'QPS',
+      data: [52.7, 93.7, 596.2, 706.0, 676.5, 666.0, 655.6, 623.2, 597.6, 586.9, 579.3, 595.7, 588.2, 589.5, 576.0, 567.3, 584.2, 587.4, 586.6, 589.8, 584.3, 581.5, 587.6, 586.0, 584.1, 592.3, 595.2, 585.9, 562.8, 595.4, 590.8, 592.2, 586.0, 589.8, 576.3, 501.7, 617.2, 600.0, 582.6, 586.3, 587.4, 575.7, 568.5, 585.6, 583.7, 589.8, 582.5, 592.2, 574.1, 602.6, 588.4, 589.2, 594.4, 595.3, 588.4, 581.1, 582.8, 589.2, 563.5, 579.8, 587.2, 566.3, 586.4, 580.5, 588.5, 566.9, 573.2, 537.8, 574.4, 581.1, 588.1, 581.4, 593.2, 582.5, 597.4, 577.4, 579.4, 585.4, 585.9, 586.3, 592.7, 584.8, 582.7, 589.1, 577.9, 586.6, 577.8, 565.5, 562.6, 559.9, 470.6, 38.9],
+      borderColor: '#4ade80',
+      backgroundColor: 'rgba(74,222,128,0.1)',
+      fill: true,
+      tension: 0.3,
+      pointRadius: 0
+    }]
+  },
+  options: { ...chartDefaults, scales: { y: { beginAtZero: true, title: { display: true, text: 'Queries/sec' } } } }
+});
+
+new Chart(document.getElementById('rtChart'), {
+  type: 'line',
+  data: {
+    labels: ['19:51:30', '19:51:40', '19:51:50', '19:52:00', '19:52:10', '19:52:20', '19:52:30', '19:52:40', '19:52:50', '19:53:00', '19:53:10', '19:53:20', '19:53:30', '19:53:40', '19:53:50', '19:54:00', '19:54:10', '19:54:20', '19:54:30', '19:54:40', '19:54:50', '19:55:00', '19:55:10', '19:55:20', '19:55:30', '19:55:40', '19:55:50', '19:56:00', '19:56:10', '19:56:20', '19:56:30', '19:56:40', '19:56:50', '19:57:00', '19:57:10', '19:57:20', '19:57:30', '19:57:40', '19:57:50', '19:58:00', '19:58:10', '19:58:20', '19:58:30', '19:58:40', '19:58:50', '19:59:00', '19:59:10', '19:59:20', '19:59:30', '19:59:40', '19:59:50', '20:00:00', '20:00:10', '20:00:20', '20:00:30', '20:00:40', '20:00:50', '20:01:00', '20:01:10', '20:01:20', '20:01:30', '20:01:40', '20:01:50', '20:02:00', '20:02:10', '20:02:20', '20:02:30', '20:02:40', '20:02:50', '20:03:00', '20:03:10', '20:03:20', '20:03:30', '20:03:40', '20:03:50', '20:04:00', '20:04:10', '20:04:20', '20:04:30', '20:04:40', '20:04:50', '20:05:00', '20:05:10', '20:05:20', '20:05:30', '20:05:40', '20:05:50', '20:06:00', '20:06:10', '20:06:20', '20:06:30', '20:06:40'],
+    datasets: [
+      { label: 'Avg RT', data: [11.58868880455408, 4.136642475987193, 1.1557656826568266, 1.0892263456090652, 1.1376178861788617, 1.1535082582582583, 1.1712411531421598, 1.2353629653401796, 1.299826639892905, 1.31497461237008, 1.3250762989815295, 1.290279670975323, 1.3200443726623599, 1.3063453774385072, 1.3420258680555557, 1.3461438392384981, 1.3231513180417667, 1.314389342866871, 1.3163721445618821, 1.3007651746354696, 1.329920246448742, 1.3201656061908855, 1.3079991490810075, 1.325719795221843, 1.3089934942646808, 1.2975704879284147, 1.2930287298387098, 1.3234074074074074, 1.370988450604122, 1.294404937856903, 1.303481719702099, 1.2923036136440391, 1.3215762798634811, 1.30494489657511, 1.3283302099600902, 1.5279657165636835, 1.2604784510693454, 1.283026, 1.3283759011328529, 1.3147820228551936, 1.3138970037453184, 1.331100052110474, 1.362257343887423, 1.3252599043715847, 1.3112521843412712, 1.3041478467277043, 1.3331248068669528, 1.2963074974670719, 1.3393682285316146, 1.2730617324925324, 1.30706186267845, 1.3158382552613714, 1.2837123149394347, 1.3064471694943725, 1.3139831747110808, 1.3246436069523317, 1.3159208991077556, 1.3204046164290564, 1.3585437444543036, 1.3285167299068643, 1.3161026907356947, 1.360477132262052, 1.310386937244202, 1.3241483204134366, 1.329075446049278, 1.3534376433233375, 1.3390917655268668, 1.4326721829676459, 1.3510229805013927, 1.321171399070728, 1.315657881312702, 1.3276021671826626, 1.2823147336480107, 1.3269617167381973, 1.3024132909273518, 1.3403825770696225, 1.3135502243700379, 1.3207640929279125, 1.310694828469022, 1.3170351355961112, 1.2998962375569427, 1.32722024623803, 1.3201199588124248, 1.3064014598540146, 1.3373701332410453, 1.3074282304807363, 1.3348051228798892, 1.3714705570291776, 1.371205296836118, 1.3664293623861403, 1.2873325541861453, 0.9552390745501286], borderColor: '#fbbf24', tension: 0.3, pointRadius: 0 },
+      { label: 'P95 RT', data: [13.0194, 11.7422, 1.56995, 1.6270499999999992, 1.8177999999999994, 1.848, 1.95625, 2.073, 2.249, 2.2395999999999994, 2.212, 2.2073999999999994, 2.235, 2.2583, 2.2581500000000005, 2.227, 2.1669499999999995, 2.2723499999999994, 2.2825, 2.145, 2.218799999999999, 2.319200000000001, 2.251, 2.249250000000001, 2.198, 2.2527999999999992, 2.1883499999999994, 2.2780999999999993, 2.3636499999999994, 2.1043499999999997, 2.1785999999999985, 2.1818999999999997, 2.242300000000001, 2.186449999999999, 2.283799999999999, 3.2042, 2.132799999999999, 2.170200000000001, 2.267, 2.2495999999999947, 2.2423499999999996, 2.2305999999999977, 2.2818, 2.28525, 2.2267999999999986, 2.228449999999999, 2.2944000000000004, 2.2317999999999993, 2.287, 2.2285, 2.2568499999999996, 2.2473499999999995, 2.1346999999999987, 2.2199999999999966, 2.2145499999999982, 2.2755, 2.2762999999999995, 2.256249999999999, 2.2516000000000025, 2.2062999999999993, 2.2308999999999997, 2.226, 2.2598499999999992, 2.2074000000000007, 2.281, 2.2425999999999995, 2.254, 2.361449999999999, 2.2638499999999993, 2.2205000000000004, 2.231, 2.2253499999999997, 2.103, 2.2798, 2.2450999999999968, 2.3290499999999983, 2.208699999999999, 2.2570999999999968, 2.1342999999999983, 2.2788999999999997, 2.1473999999999998, 2.209249999999998, 2.261799999999999, 2.1885000000000003, 2.260199999999999, 2.2095000000000002, 2.256, 2.3023000000000002, 2.35825, 2.2502999999999984, 2.1557500000000003, 1.1417999999999997], borderColor: '#f87171', tension: 0.3, pointRadius: 0 }
+    ]
+  },
+  options: { ...chartDefaults, scales: { y: { beginAtZero: true, title: { display: true, text: 'Seconds' } } } }
+});
+
+new Chart(document.getElementById('histChart'), {
+  type: 'bar',
+  data: {
+    labels: ['<0.5s', '0.5-1s', '1-2s', '2-3s', '3-5s', '5-10s', '10-15s', '15-20s', '20-30s', '30-60s', '60-120s', '>120s'],
+    datasets: [{ label: 'Count', data: [1164, 47098, 436801, 26691, 9012, 1817, 1001, 5, 0, 1, 0, 0], backgroundColor: '#60a5fa' }]
+  },
+  options: { ...chartDefaults, scales: { y: { beginAtZero: true } } }
+});
+
+new Chart(document.getElementById('podQpsChart'), {
+  type: 'bar',
+  data: {
+    labels: ['4k28t', '4xcjh', '7xp4b', '8l4c7', 'bthrr', 'mn5qd', 'rvk4t', 'tkw9p', 'vdfgc', 'x6fjc'],
+    datasets: [{ label: 'QPS', data: [58.2, 57.5, 57.9, 57.8, 57.6, 57.5, 57.5, 58.0, 57.4, 57.6], backgroundColor: '#4ade80' }]
+  },
+  options: { ...chartDefaults, scales: { y: { beginAtZero: true } } }
+});
+
+new Chart(document.getElementById('podRtChart'), {
+  type: 'bar',
+  data: {
+    labels: ['4k28t', '4xcjh', '7xp4b', '8l4c7', 'bthrr', 'mn5qd', 'rvk4t', 'tkw9p', 'vdfgc', 'x6fjc'],
+    datasets: [{ label: 'Avg RT (s)', data: [1.313, 1.331, 1.319, 1.323, 1.328, 1.33, 1.33, 1.317, 1.333, 1.328], backgroundColor: '#fbbf24' }]
+  },
+  options: { ...chartDefaults, scales: { y: { beginAtZero: true } } }
+});
+</script>
+</body>
+</html>
